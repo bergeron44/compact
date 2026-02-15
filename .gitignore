@@ -1,0 +1,32 @@
+# Dependencies
+node_modules/
+server/node_modules/
+
+# Build
+dist/
+*.local
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+
+# IDE
+.vscode/
+.idea/
+.cursor/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test / coverage
+coverage/
+.nyc_output/
+
+# Vite
+.vite/
