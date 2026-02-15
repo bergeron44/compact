@@ -61,7 +61,7 @@ const ChatMessage = ({ message }: Props) => {
             )}
             {message.queryVector != null && message.queryVector.length > 0 && (
               <div className="text-[10px] font-mono text-muted-foreground">
-                Embedding: [{message.queryVector.map((v) => v.toFixed(3)).join(", ")}]
+                Embedding: [{message.queryVector.slice(0, 5).map((v) => v.toFixed(3)).join(", ")}{message.queryVector.length > 5 ? ", ..." : ""}]
               </div>
             )}
 

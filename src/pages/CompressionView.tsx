@@ -25,24 +25,145 @@ interface StageResult {
   savedTokens: number;
 }
 
-// ── Examples ─────────────────────────────────────────────────────────
+// ── Examples (each highlights a different stage) ───────────────────────
+
+/** N-Gram: long repeated phrase so Stage 3 replaces with §N and saves many tokens */
+const EXAMPLE_NGRAM = [
+  "The retrieval augmented generation pipeline is the core of our system.",
+  "The retrieval augmented generation pipeline processes documents and builds embeddings.",
+  "The retrieval augmented generation pipeline stores vectors in the database.",
+  "The retrieval augmented generation pipeline handles user queries efficiently.",
+  "The retrieval augmented generation pipeline returns the most relevant chunks.",
+  "We rely on the retrieval augmented generation pipeline for all RAG workloads.",
+  "The retrieval augmented generation pipeline supports multiple embedding models.",
+  "The retrieval augmented generation pipeline scales horizontally.",
+  "Monitor the retrieval augmented generation pipeline via CloudIQ.",
+  "The retrieval augmented generation pipeline integrates with PowerStore and PowerFlex.",
+].join(" ");
+
+/** Term replacement: Dell product names + verbose phrases so Stage 1 saves heavily */
+const EXAMPLE_TERMS = [
+  "In order to deploy PowerStore in production, you need ProDeploy services.",
+  "Due to the fact that PowerFlex is software-defined, it scales flexibly.",
+  "At this point in time, PowerScale supports up to 50 petabytes.",
+  "For the purpose of disaster recovery, use SRDF with PowerMax and PowerStore.",
+  "It is important to note that CloudIQ is included with ProSupport.",
+  "As previously mentioned, PowerStore integrates with PowerProtect and PowerFlex.",
+  "A large number of enterprises use PowerStore and VxRail together.",
+  "We have the ability to provide PowerFlex and PowerScale in the same data center.",
+  "In the event that PowerStore fails, PowerFlex provides redundancy.",
+  "With regard to the budget, PowerStore and PowerScale are cost-effective.",
+  "In accordance with best practices, deploy PowerEdge servers with OpenManage.",
+  "Prior to the start of migration, validate PowerStore and PowerFlex capacity.",
+  "Take into consideration both PowerMax and Unity XT for tiered storage.",
+].join(" ");
+
+/** Whitespace + JSON: 2 large pretty-printed JSONs + functions with long docstrings (Stage 2) */
+const EXAMPLE_WHITESPACE = `/**
+ * Fetch asset inventory from the API and normalize for display.
+ *
+ * This function retrieves the full list of assets including servers, storage arrays,
+ * and network equipment. It applies filtering by project and status, then sorts
+ * by last_updated descending. The response is cached for 5 minutes.
+ *
+ * @param projectId - The project identifier
+ * @param options - Optional filters and pagination
+ * @returns Normalized list of assets with metadata
+ */
+async function fetchAssetInventory(projectId, options) {
+  const response = await api.get("/assets", { params: { projectId, ...options } });
+  return response.data.map(normalizeAsset);
+}
+
+{
+  "company": "Dell Technologies",
+  "department": "AI-Infrastructure",
+  "project": "Trumpet",
+  "assets": [
+    {
+      "id": "node-001",
+      "type": "PowerEdge Server",
+      "status": "Active",
+      "metadata": "",
+      "logs": [
+        "iDRAC-heartbeat-ok",
+        "iDRAC-firmware-version-stable",
+        "iDRAC-connection-secure"
+      ]
+    },
+    {
+      "id": "node-002",
+      "type": "PowerEdge Server",
+      "status": "Active",
+      "metadata": "",
+      "logs": [
+        "iDRAC-heartbeat-ok",
+        "iDRAC-firmware-version-stable"
+      ]
+    },
+    {
+      "id": "node-003",
+      "type": "PowerEdge Server",
+      "status": "Maintenance",
+      "metadata": "",
+      "logs": []
+    }
+  ]
+}
+
+/**
+ * Compute embedding for the given text using the configured model.
+ *
+ * The text is normalized (trimmed, lowercased for the model) and then sent
+ * to the embedding service. Returns a float vector of dimension 384 or 768
+ * depending on configuration. Throws if the service is unavailable.
+ *
+ * @param text - Raw input text
+ * @returns Promise resolving to the embedding vector
+ */
+async function computeEmbedding(text) {
+  const normalized = text.trim().toLowerCase();
+  const res = await fetch(API_EMBED, { method: "POST", body: JSON.stringify({ text: normalized }) });
+  if (!res.ok) throw new Error("Embedding failed");
+  return res.json().then((d) => d.embedding);
+}
+
+{
+  "vector_store": "pgvector",
+  "dimensions": 768,
+  "model": "embeddinggemma-300m",
+  "records": [
+    {
+      "index_id": "vector-8821",
+      "source": "Confluence-AIA-1177849299",
+      "embedding_values": [0.123, 0.456, -0.789, 0.012, -0.345],
+      "extra_space": ""
+    },
+    {
+      "index_id": "vector-8822",
+      "source": "Confluence-AIA-1177849300",
+      "embedding_values": [0.234, -0.567, 0.089, 0.123, -0.456],
+      "extra_space": ""
+    }
+  ]
+}`;
 
 const EXAMPLES: Record<string, { label: string; text: string }> = {
   golden: {
     label: GOLDEN_EXAMPLE_LABEL,
     text: GOLDEN_EXAMPLE,
   },
-  technical: {
-    label: "Technical documentation",
-    text: `Retrieval-Augmented Generation (RAG) is a hybrid AI architecture that combines the strengths of large language models with external knowledge retrieval systems. The RAG pipeline consists of several key components: First, a document ingestion module processes and chunks source documents into manageable segments, typically 256-512 tokens each. These chunks are then converted into dense vector embeddings using models such as sentence-transformers. The embeddings are stored in a vector database for efficient similarity search. When a user submits a query, the retrieval component converts the query into an embedding and performs approximate nearest neighbor search to find the most relevant document chunks.`,
+  ngram: {
+    label: "N-Gram (Stage 3)",
+    text: EXAMPLE_NGRAM,
   },
-  support: {
-    label: "Support ticket",
-    text: `Ticket #45892 - Priority: High - Status: Open. Customer Name: Sarah Johnson, Account: Enterprise Plus. Issue Description: Customer reports that the automated report generation feature has been failing intermittently since the last platform update. The reports either timeout after 30 seconds or produce incomplete PDF outputs missing the final summary section. This affects their monthly compliance reporting workflow which has a regulatory deadline. Steps to reproduce: Navigate to Reports, select Monthly Compliance Summary template, set date range to current month, click Generate Report. Customer has tried clearing cache using different browsers.`,
+  terms: {
+    label: "Term replacement (Stage 1)",
+    text: EXAMPLE_TERMS,
   },
-  legal: {
-    label: "Legal document",
-    text: `This Agreement is entered into as of the date of last signature below, by and between the Company, a Delaware corporation with its principal place of business at 123 Innovation Drive, San Jose, and the Contractor, an independent professional services provider. The Company engages the Contractor to perform certain services as described herein. The Contractor agrees to perform such services in accordance with the terms and conditions set forth in this Agreement. The term of this Agreement shall commence on the Effective Date and shall continue for a period of twelve months unless earlier terminated.`,
+  whitespace: {
+    label: "Whitespace + JSON (Stage 2)",
+    text: EXAMPLE_WHITESPACE,
   },
 };
 

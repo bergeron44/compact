@@ -2,13 +2,20 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { getSession, clearSession } from "@/lib/session";
 import { addUserPrompt } from "@/lib/userStore";
-import { checkCache, addToCache, getCacheStats } from "@/lib/cache";
+import {
+  findTopCacheMatches,
+  acceptCacheHit,
+  addToCache,
+  getCacheStats,
+  type CacheMatch,
+} from "@/lib/cache";
 import { simulateLLMResponse } from "@/lib/mockLLM";
 import { compressor } from "@/lib/compression";
+import { GOLDEN_EXAMPLE } from "@/lib/compression/goldenExample";
 import { Button } from "@/components/ui/button";
 import ChatMessage, { type ChatMessageData } from "@/components/ChatMessage";
 import ChatSidebar from "@/components/ChatSidebar";
-import { LogOut, Monitor, Send, Loader2 } from "lucide-react";
+import { LogOut, Monitor, Send, Loader2, Database, ArrowRight, X } from "lucide-react";
 
 const Chat = () => {
   const navigate = useNavigate();
@@ -19,6 +26,13 @@ const Chat = () => {
   const [sidebarRefresh, setSidebarRefresh] = useState(0);
   const [hitRate, setHitRate] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // ── Cache suggestions state ──────────────────────────────────────
+  const [pendingSuggestions, setPendingSuggestions] = useState<{
+    query: string;
+    matches: CacheMatch[];
+    queryVector: number[];
+  } | null>(null);
 
   useEffect(() => {
     if (!session) navigate("/");
@@ -41,10 +55,65 @@ const Chat = () => {
 
   if (!session) return null;
 
+  // ── Send prompt to LLM (with Golden Example appended) ────────────
+  const handleSendToLLM = async (query: string) => {
+    setLoading(true);
+    try {
+      // Ensure compressor is ready
+      if (!compressor.isReady()) {
+        await compressor.init();
+      }
+
+      // Append Golden Example as context
+      const goldenText = Array.isArray(GOLDEN_EXAMPLE) ? GOLDEN_EXAMPLE.join("\n\n") : String(GOLDEN_EXAMPLE);
+      const fullPrompt = query + "\n\n---\n\nContext:\n" + goldenText;
+
+      // 1. Compress the combined prompt
+      const compressed = await compressor.compress(fullPrompt);
+
+      // 2. Send the compressed prompt to the LLM
+      const response = await simulateLLMResponse(compressed.compressedWithDictionary);
+
+      // 3. Cache with the ORIGINAL query (not appended) so lookups match
+      const entry = await addToCache(
+        session.employeeId,
+        query,
+        compressed.compressedWithDictionary,
+        response,
+        {
+          originalTokens: compressed.originalTokens,
+          compressedTokens: compressed.compressedTokens,
+          compressionPercentage: compressed.compressionPercentage,
+        }
+      );
+
+      await addUserPrompt(session.employeeId, session.projectName, query, false);
+
+      // 4. Show the response
+      const assistantMsg: ChatMessageData = {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        content: response,
+        timestamp: new Date().toISOString(),
+        cached: false,
+        cacheEntry: entry,
+        userQuery: query,
+        queryVector: entry.vector,
+      };
+      setMessages((prev) => [...prev, assistantMsg]);
+    } catch (error) {
+      console.error("Error in handleSendToLLM:", error);
+    }
+    setLoading(false);
+    setSidebarRefresh((p) => p + 1);
+  };
+
+  // ── Main send handler ────────────────────────────────────────────
   const handleSend = async () => {
     const query = input.trim();
     if (!query || loading) return;
 
+    // Add user message immediately
     const userMsg: ChatMessageData = {
       id: crypto.randomUUID(),
       role: "user",
@@ -56,70 +125,64 @@ const Chat = () => {
     setLoading(true);
 
     try {
-      // Check cache (async)
-      const cached = await checkCache(session.employeeId, query);
+      // Find top cache matches
+      const { matches, queryVector } = await findTopCacheMatches(session.employeeId, query);
 
-      if (cached.hit && cached.entry) {
-        const assistantMsg: ChatMessageData = {
-          id: crypto.randomUUID(),
-          role: "assistant",
-          content: cached.entry.llmResponse,
-          timestamp: new Date().toISOString(),
-          cached: true,
-          cacheEntry: cached.entry,
-          userQuery: query,
-          queryVector: cached.queryVector,
-          similarity: cached.similarity,
-        };
-        await new Promise((r) => setTimeout(r, 200));
-        await addUserPrompt(session.employeeId, session.projectName, query, true);
-        setMessages((prev) => [...prev, assistantMsg]);
+      if (matches.length > 0) {
+        // Show suggestion panel – user picks or sends anyway
+        setPendingSuggestions({ query, matches, queryVector });
+        setLoading(false);
       } else {
-        // Ensure compressor is ready
-        if (!compressor.isReady()) {
-          await compressor.init();
-        }
-
-        // 1. Compress the prompt before sending to LLM
-        const compressed = await compressor.compress(query);
-
-        // 2. Send the compressed prompt (with §-dictionary) to the LLM
-        const response = await simulateLLMResponse(compressed.compressedWithDictionary);
-
-        // 3. Cache: store original query + compressed prompt + real LLM response
-        const entry = await addToCache(
-          session.employeeId,
-          query,
-          compressed.compressedWithDictionary,
-          response,
-          {
-            originalTokens: compressed.originalTokens,
-            compressedTokens: compressed.compressedTokens,
-            compressionPercentage: compressed.compressionPercentage,
-          }
-        );
-
-        await addUserPrompt(session.employeeId, session.projectName, query, false);
-
-        // 4. Show the real (uncompressed) LLM response to the user
-        const assistantMsg: ChatMessageData = {
-          id: crypto.randomUUID(),
-          role: "assistant",
-          content: response,
-          timestamp: new Date().toISOString(),
-          cached: false,
-          cacheEntry: entry,
-          userQuery: query,
-          queryVector: entry.vector,
-        };
-        setMessages((prev) => [...prev, assistantMsg]);
+        // No matches → send directly to LLM
+        setLoading(false);
+        await handleSendToLLM(query);
       }
     } catch (error) {
       console.error("Error in handleSend:", error);
+      setLoading(false);
     }
+  };
 
-    setLoading(false);
+  // ── User picks a cached suggestion ───────────────────────────────
+  const handlePickSuggestion = async (match: CacheMatch) => {
+    if (!pendingSuggestions) return;
+    const { query, queryVector } = pendingSuggestions;
+    setPendingSuggestions(null);
+
+    // Update hit count in DB
+    await acceptCacheHit(match._dbId);
+    await addUserPrompt(session.employeeId, session.projectName, query, true);
+
+    const assistantMsg: ChatMessageData = {
+      id: crypto.randomUUID(),
+      role: "assistant",
+      content: match.entry.llmResponse,
+      timestamp: new Date().toISOString(),
+      cached: true,
+      cacheEntry: {
+        ...match.entry,
+        hitCount: match.entry.hitCount + 1,
+        lastAccessed: new Date().toISOString(),
+      },
+      userQuery: query,
+      queryVector,
+      similarity: match.similarity,
+    };
+    setMessages((prev) => [...prev, assistantMsg]);
     setSidebarRefresh((p) => p + 1);
+  };
+
+  // ── User dismisses suggestions and sends to LLM ─────────────────
+  const handleSendAnyway = async () => {
+    if (!pendingSuggestions) return;
+    const { query } = pendingSuggestions;
+    setPendingSuggestions(null);
+    await handleSendToLLM(query);
+  };
+
+  // ── Dismiss suggestions without sending ──────────────────────────
+  const handleDismissSuggestions = () => {
+    setPendingSuggestions(null);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -131,6 +194,7 @@ const Chat = () => {
 
   const handleClearChat = () => {
     setMessages([]);
+    setPendingSuggestions(null);
   };
 
   return (
@@ -209,6 +273,56 @@ const Chat = () => {
               </div>
             )}
           </div>
+
+          {/* ── Cache Suggestion Panel ──────────────────────────── */}
+          {pendingSuggestions && (
+            <div className="border-t bg-muted/40 px-4 py-3 shrink-0">
+              <div className="max-w-4xl mx-auto space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-sm font-medium">
+                    <Database className="w-4 h-4 text-primary" />
+                    Similar queries found in cache
+                  </div>
+                  <button
+                    onClick={handleDismissSuggestions}
+                    className="text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <div className="space-y-1.5">
+                  {pendingSuggestions.matches.map((match, i) => (
+                    <button
+                      key={i}
+                      onClick={() => handlePickSuggestion(match)}
+                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border bg-card hover:bg-accent/50 transition-colors text-left group"
+                    >
+                      <span className="flex-1 text-sm truncate">
+                        {match.entry.queryText.length > 80
+                          ? match.entry.queryText.slice(0, 80) + "..."
+                          : match.entry.queryText}
+                      </span>
+                      <span className="shrink-0 text-[11px] font-mono font-semibold px-2 py-0.5 rounded-full bg-primary/10 text-primary">
+                        {(match.similarity * 100).toFixed(1)}% match
+                      </span>
+                      <ArrowRight className="w-3.5 h-3.5 text-muted-foreground group-hover:text-foreground shrink-0 transition-colors" />
+                    </button>
+                  ))}
+                </div>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full mt-1"
+                  onClick={handleSendAnyway}
+                >
+                  <Send className="w-3.5 h-3.5 mr-2" />
+                  Send to LLM anyway
+                </Button>
+              </div>
+            </div>
+          )}
 
           {/* Input */}
           <div className="border-t bg-card p-4 shrink-0">

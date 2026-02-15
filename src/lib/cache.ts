@@ -124,6 +124,59 @@ export async function addToCache(
   };
 }
 
+// ============================================
+// CACHE SUGGESTION (top-N matches)
+// ============================================
+
+export interface CacheMatch {
+  entry: CacheEntry;
+  similarity: number;
+  /** Internal DB id – used by acceptCacheHit */
+  _dbId: number;
+}
+
+/**
+ * Find the top `limit` cache entries whose similarity to `query`
+ * exceeds `threshold`.  Does NOT update hitCount – call
+ * `acceptCacheHit` once the user actually picks a suggestion.
+ */
+export async function findTopCacheMatches(
+  projectId: string,
+  query: string,
+  limit = 3,
+  threshold = 0.85,
+): Promise<{ matches: CacheMatch[]; queryVector: number[] }> {
+  const entries = await localDB.getCacheByProject(projectId);
+  if (entries.length === 0) return { matches: [], queryVector: [] };
+
+  const queryVector = await embedText(query);
+  const scored: CacheMatch[] = [];
+
+  for (const entry of entries) {
+    const emb = entry.embedding?.length ? entry.embedding : [];
+    if (emb.length === 0) continue;
+    if (emb.length !== queryVector.length) continue;
+
+    const sim = cosineSimilarity(queryVector, emb);
+    if (sim > threshold) {
+      scored.push({ entry: toCacheEntry(entry), similarity: sim, _dbId: entry.id! });
+    }
+  }
+
+  // Sort descending by similarity, take top `limit`
+  scored.sort((a, b) => b.similarity - a.similarity);
+  return { matches: scored.slice(0, limit), queryVector };
+}
+
+/** Increment hitCount for an accepted cache suggestion */
+export async function acceptCacheHit(dbId: number): Promise<void> {
+  await localDB.updateCacheHit(dbId);
+}
+
+// ============================================
+// STATS & MANAGEMENT
+// ============================================
+
 export async function getCacheStats(projectId: string) {
   return await localDB.getCacheStats(projectId);
 }

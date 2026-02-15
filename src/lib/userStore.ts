@@ -115,18 +115,43 @@ function djb2(str: string): number {
 }
 
 /**
- * Word-hash embedding: each word maps to a dimension via djb2.
- * Different word sets → different vectors. Same/similar words → high cosine similarity.
- * Keeps 8 dimensions for backward compatibility with existing cache entries.
+ * Improved local embedding fallback (128 dimensions).
+ *
+ * Uses two feature sets for robust similarity:
+ *   • Dims  0–63: word unigrams (semantic matching)
+ *   • Dims 64–127: character trigrams (fuzzy / morphological matching)
+ *
+ * This makes "What is RAG?" highly similar to "rag pls explain" because
+ * they share words and character n-grams, while the higher dimensionality
+ * reduces accidental collisions.
+ *
+ * NOTE: Existing cache entries with old 8-dim vectors are skipped
+ * automatically by the dimension-mismatch guard in cache lookups.
  */
 export function textToVector(text: string): number[] {
-  const words = text.toLowerCase().replace(/[^\w\s]/g, '').split(/\s+/).filter(Boolean);
-  const dim = 8;
-  const vec = new Array(dim).fill(0);
+  const DIM = 128;
+  const WORD_DIM = 64;   // first half for words
+  // char-trigram half = DIM - WORD_DIM = 64
+
+  const normalised = text.toLowerCase().replace(/[^\w\s]/g, '');
+  const words = normalised.split(/\s+/).filter(Boolean);
+  const vec = new Array(DIM).fill(0);
+
+  // ── Word features (dims 0–63) ────────────────────────────────
   for (const w of words) {
-    const slot = djb2(w) % dim;
+    const slot = djb2(w) % WORD_DIM;
     vec[slot] += 1;
   }
+
+  // ── Character trigram features (dims 64–127) ─────────────────
+  const flat = normalised.replace(/\s+/g, ' ').trim();
+  for (let i = 0; i <= flat.length - 3; i++) {
+    const tri = flat.slice(i, i + 3);
+    const slot = WORD_DIM + (djb2(tri) % (DIM - WORD_DIM));
+    vec[slot] += 1;
+  }
+
+  // ── L2 normalise ─────────────────────────────────────────────
   const mag = Math.sqrt(vec.reduce((s, v) => s + v * v, 0)) || 1;
   return vec.map((v) => Math.round((v / mag) * 1000) / 1000);
 }
