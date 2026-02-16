@@ -18,6 +18,8 @@ export interface CacheEntry {
   vector: number[];
   createdAt: string;
   lastAccessed: string;
+  /** Employee who created this cache entry */
+  employeeId?: string;
 }
 
 // ============================================
@@ -36,6 +38,7 @@ function toCacheEntry(val: CacheValue): CacheEntry {
     vector: val.embedding,
     createdAt: val.createdAt,
     lastAccessed: val.lastAccessed,
+    employeeId: val.employeeId,
   };
 }
 
@@ -78,7 +81,8 @@ export async function checkCache(
 /**
  * Store a cache entry with the compressed prompt and the real LLM response.
  *
- * @param projectId  - project / employee ID
+ * @param projectId  - org-wide project name (shared cache key)
+ * @param employeeId - the employee who created this entry
  * @param query      - the original user query
  * @param compressedPrompt - the prompt after compression (with §-dictionary), sent to LLM
  * @param llmResponse - the real, uncompressed LLM response
@@ -86,6 +90,7 @@ export async function checkCache(
  */
 export async function addToCache(
   projectId: string,
+  employeeId: string,
   query: string,
   compressedPrompt: string,
   llmResponse: string,
@@ -100,7 +105,7 @@ export async function addToCache(
 
   await localDB.addToCache({
     projectId,
-    employeeId: projectId,
+    employeeId,
     queryText: query,
     llmResponse,
     compressedPrompt,
@@ -121,6 +126,7 @@ export async function addToCache(
     vector: embedding,
     createdAt: new Date().toISOString(),
     lastAccessed: new Date().toISOString(),
+    employeeId,
   };
 }
 
@@ -136,15 +142,16 @@ export interface CacheMatch {
 }
 
 /**
- * Find the top `limit` cache entries whose similarity to `query`
- * exceeds `threshold`.  Does NOT update hitCount – call
+ * Find the top `limit` cache entries closest to `query` by cosine
+ * similarity.  By default returns the 5 nearest with NO threshold,
+ * so the UI always shows distances.  Does NOT update hitCount – call
  * `acceptCacheHit` once the user actually picks a suggestion.
  */
 export async function findTopCacheMatches(
   projectId: string,
   query: string,
-  limit = 3,
-  threshold = 0.85,
+  limit = 5,
+  threshold = 0,
 ): Promise<{ matches: CacheMatch[]; queryVector: number[] }> {
   const entries = await localDB.getCacheByProject(projectId);
   if (entries.length === 0) return { matches: [], queryVector: [] };

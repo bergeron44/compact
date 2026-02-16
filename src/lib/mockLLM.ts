@@ -9,6 +9,53 @@ const responses: Record<string, string> = {
     "Thank you for your query. Based on the available knowledge base, here is a comprehensive response covering the key aspects of your question. The system has analyzed relevant documents and synthesized the following information. For more specific results, try refining your query with targeted keywords related to your project domain. The RAG pipeline has processed multiple document chunks to generate this contextual response with high relevance scoring.",
 };
 
+/**
+ * Deterministic mock prompt-quality rating (1-10).
+ * Evaluates prompt length, specificity, domain vocabulary, and structure.
+ */
+export function ratePrompt(text: string): { score: number; reason: string } {
+  let score = 5; // baseline
+  const reasons: string[] = [];
+
+  // Length: very short prompts are low quality
+  if (text.length < 15) {
+    score -= 2;
+    reasons.push("Too short");
+  } else if (text.length > 60) {
+    score += 1;
+    reasons.push("Good length");
+  }
+
+  // Contains a question mark -> more specific
+  if (text.includes("?")) {
+    score += 1;
+    reasons.push("Phrased as question");
+  }
+
+  // Domain keywords (RAG, cache, compress, etc.)
+  const domainWords = ["rag", "cache", "compress", "vector", "embed", "llm", "token", "model"];
+  const hits = domainWords.filter((w) => text.toLowerCase().includes(w)).length;
+  if (hits >= 2) {
+    score += 1;
+    reasons.push(`${hits} domain keywords`);
+  }
+  if (hits === 0) {
+    score -= 1;
+    reasons.push("No domain keywords");
+  }
+
+  // Specificity: mentions a product/tool name
+  if (/power(store|flex|edge|scale)|vxrail|idrac|dell/i.test(text)) {
+    score += 1;
+    reasons.push("Mentions specific product");
+  }
+
+  return {
+    score: Math.max(1, Math.min(10, score)),
+    reason: reasons.join("; "),
+  };
+}
+
 export function simulateLLMResponse(query: string): Promise<string> {
   return new Promise((resolve) => {
     const q = query.toLowerCase();

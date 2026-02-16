@@ -11,6 +11,7 @@ import Chat from "./pages/Chat";
 import CacheDashboard from "./pages/CacheDashboard";
 import CompressionView from "./pages/CompressionView";
 import OrgCaching from "./pages/OrgCaching";
+import PromptRating from "./pages/PromptRating";
 import TestingDashboard from "./pages/TestingDashboard";
 import NotFound from "./pages/NotFound";
 
@@ -38,6 +39,7 @@ const App = () => {
             <Route path="/cache" element={<CacheDashboard />} />
             <Route path="/compression" element={<CompressionView />} />
             <Route path="/org-cache" element={<OrgCaching />} />
+            <Route path="/prompt-rating" element={<PromptRating />} />
             <Route path="/testing" element={<TestingDashboard />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />

@@ -1,4 +1,5 @@
 import { localDB } from './storage/db';
+import { ratePrompt } from './mockLLM';
 
 // ============================================
 // INTERFACES (kept for backward compat)
@@ -9,6 +10,10 @@ export interface UserPromptEntry {
   vector: number[];
   frequency: number;
   lastUsed: string;
+  /** Mock-LLM quality rating (1–10) */
+  rating: number;
+  /** Human-readable reason for the rating */
+  ratingReason: string;
 }
 
 export interface OrgUser {
@@ -37,6 +42,8 @@ export async function findUserByEmployeeId(employeeId: string): Promise<OrgUser 
       vector: [],
       frequency: 1,
       lastUsed: p.timestamp,
+      rating: p.rating ?? 5,
+      ratingReason: p.ratingReason ?? '',
     })),
   };
 }
@@ -64,9 +71,23 @@ export async function addUserPrompt(
   employeeId: string,
   projectId: string,
   queryText: string,
-  cached: boolean
+  cached: boolean,
+  rating?: number,
+  ratingReason?: string,
 ): Promise<void> {
-  await localDB.addPrompt({ employeeId, projectId, queryText, cached });
+  // Use provided rating/reason (from filterAndRate), otherwise fall back to mock
+  const { score, reason } =
+    rating != null && ratingReason != null
+      ? { score: rating, reason: ratingReason }
+      : ratePrompt(queryText);
+  await localDB.addPrompt({
+    employeeId,
+    projectId,
+    queryText,
+    cached,
+    rating: score,
+    ratingReason: reason,
+  });
 }
 
 export async function getAllOrgUsers(): Promise<OrgUser[]> {
@@ -80,13 +101,20 @@ export async function getAllOrgUsers(): Promise<OrgUser[]> {
       const existing = promptMap.get(p.queryText);
       if (existing) {
         existing.frequency += 1;
-        existing.lastUsed = p.timestamp > existing.lastUsed ? p.timestamp : existing.lastUsed;
+        if (p.timestamp > existing.lastUsed) {
+          existing.lastUsed = p.timestamp;
+          // Keep the most recent rating
+          existing.rating = p.rating ?? existing.rating;
+          existing.ratingReason = p.ratingReason ?? existing.ratingReason;
+        }
       } else {
         promptMap.set(p.queryText, {
           text: p.queryText,
           vector: [],
           frequency: 1,
           lastUsed: p.timestamp,
+          rating: p.rating ?? 5,
+          ratingReason: p.ratingReason ?? '',
         });
       }
     }

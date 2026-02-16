@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { getCacheStats } from "@/lib/cache";
-import { BarChart3, Database, Percent, Zap, Trash2, LayoutDashboard, Users, SplitSquareHorizontal } from "lucide-react";
+import { BarChart3, Database, Percent, Zap, Trash2, LayoutDashboard, Users, SplitSquareHorizontal, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 
@@ -63,6 +63,10 @@ const ChatSidebar = ({ projectId, onClearChat, refreshKey }: Props) => {
         <Button variant="outline" size="sm" className="w-full justify-start gap-2" onClick={() => navigate("/org-cache")}>
           <Users className="w-3.5 h-3.5" />
           Organization Cache
+        </Button>
+        <Button variant="outline" size="sm" className="w-full justify-start gap-2" onClick={() => navigate("/prompt-rating")}>
+          <Star className="w-3.5 h-3.5" />
+          Prompt Ratings
         </Button>
         <Button variant="outline" size="sm" className="w-full justify-start gap-2" onClick={() => navigate("/compression")}>
           <SplitSquareHorizontal className="w-3.5 h-3.5" />

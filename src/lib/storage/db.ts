@@ -55,6 +55,10 @@ export interface CompactDB extends DBSchema {
       timestamp: string;
       cached: boolean;
       responseTime?: number;
+      /** Mock-LLM quality rating (1–10) */
+      rating?: number;
+      /** Human-readable reason for the rating */
+      ratingReason?: string;
     };
     indexes: {
       'by-employee': string;
@@ -80,7 +84,7 @@ class LocalDatabase {
   private db: IDBPDatabase<CompactDB> | null = null;
   private initPromise: Promise<void> | null = null;
   private readonly DB_NAME = 'dell-compact-db';
-  private readonly DB_VERSION = 3;
+  private readonly DB_VERSION = 5;
 
   async init(): Promise<void> {
     if (this.db) return;
@@ -116,9 +120,9 @@ class LocalDatabase {
           // ── Version 2: rename compressedResponse → compressedPrompt ──
           if (oldVersion < 2 && oldVersion >= 1) {
             const cacheStore = transaction.objectStore('cache');
-            const request = cacheStore.openCursor();
+            const request = cacheStore.openCursor() as unknown as IDBRequest;
             request.onsuccess = function () {
-              const cursor = request.result;
+              const cursor = request.result as IDBCursorWithValue | null;
               if (!cursor) return;
               const record = cursor.value as Record<string, unknown>;
               if ('compressedResponse' in record && !('compressedPrompt' in record)) {
@@ -137,6 +141,63 @@ class LocalDatabase {
             console.info(
               '[db] Cleared cache store during upgrade to v3 (embedding dimension change).'
             );
+          }
+
+          // ── Version 4: backfill rating + ratingReason on existing prompts ──
+          if (oldVersion < 4 && oldVersion >= 1) {
+            const promptsStore = transaction.objectStore('prompts');
+            const req = promptsStore.openCursor() as unknown as IDBRequest;
+            req.onsuccess = function () {
+              const cursor = req.result as IDBCursorWithValue | null;
+              if (!cursor) return;
+              const record = cursor.value as Record<string, unknown>;
+              if (record['rating'] == null) {
+                // Simple deterministic rating matching ratePrompt() logic
+                const text = String(record['queryText'] || '');
+                let score = 5;
+                if (text.length < 15) score -= 2;
+                else if (text.length > 60) score += 1;
+                if (text.includes('?')) score += 1;
+                const domainWords = ['rag', 'cache', 'compress', 'vector', 'embed', 'llm', 'token', 'model'];
+                const hits = domainWords.filter((w) => text.toLowerCase().includes(w)).length;
+                if (hits >= 2) score += 1;
+                if (hits === 0) score -= 1;
+                if (/power(store|flex|edge|scale)|vxrail|idrac|dell/i.test(text)) score += 1;
+                score = Math.max(1, Math.min(10, score));
+                record['rating'] = score;
+                record['ratingReason'] = 'Auto-rated during migration';
+                cursor.update(record);
+              }
+              cursor.continue();
+            };
+            console.info('[db] Backfilled prompt ratings during upgrade to v4.');
+          }
+
+          // ── Version 5: fix cache projectId from employeeId → projectName (org-wide) ──
+          if (oldVersion < 5 && oldVersion >= 1) {
+            const cacheStore = transaction.objectStore('cache');
+            const usersStore = transaction.objectStore('users');
+            const cursorReq = cacheStore.openCursor() as unknown as IDBRequest;
+            cursorReq.onsuccess = function () {
+              const cursor = cursorReq.result as IDBCursorWithValue | null;
+              if (!cursor) return;
+              const record = cursor.value as Record<string, unknown>;
+              const empId = String(record['employeeId'] || '');
+              const currentProjectId = String(record['projectId'] || '');
+              // If projectId equals employeeId, look up the user's projectName
+              if (empId && currentProjectId === empId) {
+                const userReq = usersStore.get(empId) as unknown as IDBRequest;
+                userReq.onsuccess = function () {
+                  const user = userReq.result as Record<string, unknown> | undefined;
+                  if (user && user['projectName']) {
+                    record['projectId'] = String(user['projectName']);
+                    cursor.update(record);
+                  }
+                };
+              }
+              cursor.continue();
+            };
+            console.info('[db] Migrated cache projectId from employeeId to projectName (v5).');
           }
         },
       });
@@ -253,7 +314,7 @@ class LocalDatabase {
 
   async addPrompt(prompt: Omit<PromptValue, 'id' | 'timestamp'>): Promise<number> {
     await this.ensureInit();
-    const record = {
+    const record: PromptValue = {
       ...prompt,
       timestamp: new Date().toISOString(),
     };

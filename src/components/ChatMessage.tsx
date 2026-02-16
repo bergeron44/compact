@@ -64,6 +64,11 @@ const ChatMessage = ({ message }: Props) => {
                 Embedding: [{message.queryVector.slice(0, 5).map((v) => v.toFixed(3)).join(", ")}{message.queryVector.length > 5 ? ", ..." : ""}]
               </div>
             )}
+            {message.cacheEntry.createdAt && (
+              <div className="text-[10px] font-mono text-muted-foreground">
+                Cached at: {format(new Date(message.cacheEntry.createdAt), "MMM dd, yyyy HH:mm")}
+              </div>
+            )}
 
             <button
               onClick={() => setShowCompressed(!showCompressed)}

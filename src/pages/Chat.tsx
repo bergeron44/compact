@@ -12,10 +12,12 @@ import {
 import { simulateLLMResponse } from "@/lib/mockLLM";
 import { compressor } from "@/lib/compression";
 import { GOLDEN_EXAMPLE } from "@/lib/compression/goldenExample";
+import { filterAndRatePrompt, filterAndRateLocal, type FilterRateResult } from "@/lib/filterAndRating";
 import { Button } from "@/components/ui/button";
 import ChatMessage, { type ChatMessageData } from "@/components/ChatMessage";
 import ChatSidebar from "@/components/ChatSidebar";
-import { LogOut, Monitor, Send, Loader2, Database, ArrowRight, X } from "lucide-react";
+import { LogOut, Monitor, Send, Loader2, Database, ArrowRight, X, Clock } from "lucide-react";
+import { format } from "date-fns";
 
 const Chat = () => {
   const navigate = useNavigate();
@@ -32,6 +34,7 @@ const Chat = () => {
     query: string;
     matches: CacheMatch[];
     queryVector: number[];
+    filterResult: FilterRateResult;
   } | null>(null);
 
   useEffect(() => {
@@ -45,7 +48,7 @@ const Chat = () => {
   // Load hit rate asynchronously
   const refreshHitRate = useCallback(async () => {
     if (!session) return;
-    const stats = await getCacheStats(session.employeeId);
+    const stats = await getCacheStats(session.projectName);
     setHitRate(stats.hitRate);
   }, [session]);
 
@@ -56,9 +59,12 @@ const Chat = () => {
   if (!session) return null;
 
   // ── Send prompt to LLM (with Golden Example appended) ────────────
-  const handleSendToLLM = async (query: string) => {
+  const handleSendToLLM = async (query: string, filterResult?: FilterRateResult) => {
     setLoading(true);
     try {
+      // If no filterResult was provided, compute one now
+      const fr = filterResult ?? await filterAndRatePrompt(query).catch(() => filterAndRateLocal(query));
+
       // Ensure compressor is ready
       if (!compressor.isReady()) {
         await compressor.init();
@@ -74,22 +80,27 @@ const Chat = () => {
       // 2. Send the compressed prompt to the LLM
       const response = await simulateLLMResponse(compressed.compressedWithDictionary);
 
-      // 3. Cache with the ORIGINAL query (not appended) so lookups match
-      const entry = await addToCache(
-        session.employeeId,
-        query,
-        compressed.compressedWithDictionary,
-        response,
-        {
-          originalTokens: compressed.originalTokens,
-          compressedTokens: compressed.compressedTokens,
-          compressionPercentage: compressed.compressionPercentage,
-        }
-      );
+      // 3. Cache ONLY if the filter says this prompt is cache-eligible
+      let entry;
+      if (fr.shouldCache) {
+        entry = await addToCache(
+          session.projectName,
+          session.employeeId,
+          query,
+          compressed.compressedWithDictionary,
+          response,
+          {
+            originalTokens: compressed.originalTokens,
+            compressedTokens: compressed.compressedTokens,
+            compressionPercentage: compressed.compressionPercentage,
+          }
+        );
+      }
 
-      await addUserPrompt(session.employeeId, session.projectName, query, false);
+      // 4. Save prompt with rating from filter
+      await addUserPrompt(session.employeeId, session.projectName, query, false, fr.rating, fr.reason);
 
-      // 4. Show the response
+      // 5. Show the response
       const assistantMsg: ChatMessageData = {
         id: crypto.randomUUID(),
         role: "assistant",
@@ -98,7 +109,7 @@ const Chat = () => {
         cached: false,
         cacheEntry: entry,
         userQuery: query,
-        queryVector: entry.vector,
+        queryVector: entry?.vector,
       };
       setMessages((prev) => [...prev, assistantMsg]);
     } catch (error) {
@@ -125,17 +136,23 @@ const Chat = () => {
     setLoading(true);
 
     try {
-      // Find top cache matches
-      const { matches, queryVector } = await findTopCacheMatches(session.employeeId, query);
+      // Run filter+rate and cache lookup in parallel
+      const [{ matches, queryVector }, filterResult] = await Promise.all([
+        findTopCacheMatches(session.projectName, query),
+        filterAndRatePrompt(query).catch((err) => {
+          console.warn("filterAndRate failed in handleSend, using local fallback", err);
+          return filterAndRateLocal(query);
+        }),
+      ]);
 
       if (matches.length > 0) {
         // Show suggestion panel – user picks or sends anyway
-        setPendingSuggestions({ query, matches, queryVector });
+        setPendingSuggestions({ query, matches, queryVector, filterResult });
         setLoading(false);
       } else {
-        // No matches → send directly to LLM
+        // No matches → send directly to LLM (pass filterResult to avoid re-computing)
         setLoading(false);
-        await handleSendToLLM(query);
+        await handleSendToLLM(query, filterResult);
       }
     } catch (error) {
       console.error("Error in handleSend:", error);
@@ -146,12 +163,15 @@ const Chat = () => {
   // ── User picks a cached suggestion ───────────────────────────────
   const handlePickSuggestion = async (match: CacheMatch) => {
     if (!pendingSuggestions) return;
-    const { query, queryVector } = pendingSuggestions;
+    const { query, queryVector, filterResult } = pendingSuggestions;
     setPendingSuggestions(null);
 
     // Update hit count in DB
     await acceptCacheHit(match._dbId);
-    await addUserPrompt(session.employeeId, session.projectName, query, true);
+    await addUserPrompt(
+      session.employeeId, session.projectName, query, true,
+      filterResult.rating, filterResult.reason,
+    );
 
     const assistantMsg: ChatMessageData = {
       id: crypto.randomUUID(),
@@ -175,9 +195,9 @@ const Chat = () => {
   // ── User dismisses suggestions and sends to LLM ─────────────────
   const handleSendAnyway = async () => {
     if (!pendingSuggestions) return;
-    const { query } = pendingSuggestions;
+    const { query, filterResult } = pendingSuggestions;
     setPendingSuggestions(null);
-    await handleSendToLLM(query);
+    await handleSendToLLM(query, filterResult);
   };
 
   // ── Dismiss suggestions without sending ──────────────────────────
@@ -303,6 +323,10 @@ const Chat = () => {
                           ? match.entry.queryText.slice(0, 80) + "..."
                           : match.entry.queryText}
                       </span>
+                      <span className="shrink-0 text-[10px] font-mono text-muted-foreground flex items-center gap-1">
+                        <Clock className="w-3 h-3" />
+                        {format(new Date(match.entry.createdAt), "MMM dd, HH:mm")}
+                      </span>
                       <span className="shrink-0 text-[11px] font-mono font-semibold px-2 py-0.5 rounded-full bg-primary/10 text-primary">
                         {(match.similarity * 100).toFixed(1)}% match
                       </span>
@@ -348,7 +372,7 @@ const Chat = () => {
 
         {/* Sidebar */}
         <ChatSidebar
-          projectId={session.employeeId}
+          projectId={session.projectName}
           onClearChat={handleClearChat}
           refreshKey={sidebarRefresh}
         />

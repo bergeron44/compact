@@ -74,7 +74,8 @@ const CacheDashboard = () => {
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [detailEntry, setDetailEntry] = useState<CacheEntry | null>(null);
 
-  const projectId = session?.employeeId ?? "";
+  const projectId = session?.projectName ?? "";
+  const [ownerFilter, setOwnerFilter] = useState<"all" | "mine">("all");
 
   // Async state for cache data
   const [stats, setStats] = useState({ totalQueries: 0, totalHits: 0, hitRate: 0, avgCompression: 0 });
@@ -97,6 +98,11 @@ const CacheDashboard = () => {
   const filteredEntries = useMemo(() => {
     let entries = allEntries.map((e, i) => ({ ...e, _index: i }));
 
+    // Owner filter (My entries vs All org entries)
+    if (ownerFilter === "mine" && session) {
+      entries = entries.filter((e) => e.employeeId === session.employeeId);
+    }
+
     // Search
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
@@ -115,7 +121,7 @@ const CacheDashboard = () => {
     });
 
     return entries;
-  }, [allEntries, searchQuery, filter, sortBy]);
+  }, [allEntries, searchQuery, filter, sortBy, ownerFilter, session]);
 
   if (!session) {
     navigate("/");
@@ -205,7 +211,7 @@ const CacheDashboard = () => {
           <Monitor className="w-5 h-5 text-primary" />
           <span className="font-semibold text-sm tracking-tight">Dell Compact</span>
           <span className="text-xs font-mono text-muted-foreground px-2 py-0.5 bg-muted rounded">
-            Cache Dashboard
+            Cache Dashboard — {projectId}
           </span>
         </div>
         <Button variant="ghost" size="sm" onClick={() => navigate("/chat")}>
@@ -233,6 +239,28 @@ const CacheDashboard = () => {
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-9"
             />
+          </div>
+          <div className="flex items-center gap-1 border rounded-lg p-0.5">
+            <button
+              onClick={() => setOwnerFilter("all")}
+              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                ownerFilter === "all"
+                  ? "bg-primary text-primary-foreground"
+                  : "hover:bg-muted text-muted-foreground"
+              }`}
+            >
+              All Org
+            </button>
+            <button
+              onClick={() => setOwnerFilter("mine")}
+              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                ownerFilter === "mine"
+                  ? "bg-primary text-primary-foreground"
+                  : "hover:bg-muted text-muted-foreground"
+              }`}
+            >
+              My Entries
+            </button>
           </div>
           <Select value={filter} onValueChange={(v) => setFilter(v as FilterMode)}>
             <SelectTrigger className="w-[180px]">
@@ -282,8 +310,10 @@ const CacheDashboard = () => {
                   </th>
                   <th className="p-3 text-left font-medium text-muted-foreground">Query Preview</th>
                   <th className="p-3 text-left font-medium text-muted-foreground">Response Preview</th>
+                  <th className="p-3 text-left font-medium text-muted-foreground">Created By</th>
                   <th className="p-3 text-center font-medium text-muted-foreground">Hits</th>
                   <th className="p-3 text-center font-medium text-muted-foreground">Compression</th>
+                  <th className="p-3 text-left font-medium text-muted-foreground">Cached At</th>
                   <th className="p-3 text-left font-medium text-muted-foreground">Last Accessed</th>
                   <th className="p-3 text-center font-medium text-muted-foreground">Actions</th>
                 </tr>
@@ -291,7 +321,7 @@ const CacheDashboard = () => {
               <tbody>
                 {filteredEntries.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="p-8 text-center text-muted-foreground">
+                    <td colSpan={8} className="p-8 text-center text-muted-foreground">
                       {allEntries.length === 0
                         ? "No cache entries yet. Start chatting to populate the cache."
                         : "No entries match your filters."}
@@ -316,6 +346,11 @@ const CacheDashboard = () => {
                         {entry.llmResponse.length > 50 ? entry.llmResponse.slice(0, 50) + "…" : entry.llmResponse}
                       </span>
                     </td>
+                    <td className="p-3">
+                      <span className="text-xs font-mono text-muted-foreground">
+                        {entry.employeeId || "—"}
+                      </span>
+                    </td>
                     <td className="p-3 text-center">
                       <span className="inline-flex items-center justify-center min-w-[28px] px-1.5 py-0.5 rounded-full bg-accent text-accent-foreground text-xs font-mono font-semibold">
                         {entry.hitCount}
@@ -323,6 +358,9 @@ const CacheDashboard = () => {
                     </td>
                     <td className="p-3 text-center">
                       <span className="font-mono text-xs">{entry.compressionRatio}%</span>
+                    </td>
+                    <td className="p-3 text-xs text-muted-foreground font-mono">
+                      {format(new Date(entry.createdAt), "MMM dd, HH:mm")}
                     </td>
                     <td className="p-3 text-xs text-muted-foreground font-mono">
                       {format(new Date(entry.lastAccessed), "MMM dd, HH:mm")}
@@ -452,7 +490,8 @@ const CacheDashboard = () => {
                 </div>
               </Section>
               <div className="flex items-center justify-between text-xs text-muted-foreground font-mono pt-2 border-t">
-                <span>Created: {format(new Date(detailEntry.createdAt), "MMM dd, yyyy HH:mm")}</span>
+                <span>Created by: {detailEntry.employeeId || "—"}</span>
+                <span>Cached at: {format(new Date(detailEntry.createdAt), "MMM dd, yyyy HH:mm")}</span>
                 <span>Last accessed: {format(new Date(detailEntry.lastAccessed), "MMM dd, yyyy HH:mm")}</span>
               </div>
               <Button
