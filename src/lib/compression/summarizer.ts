@@ -49,16 +49,8 @@ const RE_ELLIPSIS_META = /\.{3}\s*\([^)]*\)\s*\.{0,3}/g;
 // ─────────────────────────────────────────────────────────────────────
 
 /**
- * Mock summarizer that uses deterministic regex rules to simulate
- * what an LLM summarizer would produce.
- *
- * Rules (applied in order):
- *  1. Remove decorative separator runs (====, ----, etc.)
- *  2. Remove SECTION N: TITLE headers
- *  3. Remove internal / test markers (e.g. DELL-INTERNAL-STRESS-TEST-START)
- *  4. Remove meta-comments (parenthetical & bracket filler)
- *  5. Collapse resulting multi-spaces → single space
- *  6. Final trim
+ * Mock summarizer that uses deterministic regex rules.
+ * Use as fallback or when API is unreachable.
  */
 export class MockSummarizer implements Summarizer {
   async summarize(text: string): Promise<string> {
@@ -93,5 +85,37 @@ export class MockSummarizer implements Summarizer {
     result = result.trim();
 
     return result;
+  }
+}
+
+// ============================================
+// API IMPLEMENTATION (Real LLM)
+// ============================================
+
+import { queryLLM } from '../llmClient';
+
+export class ApiSummarizer implements Summarizer {
+  private fallback = new MockSummarizer();
+
+  async summarize(text: string): Promise<string> {
+    const systemPrompt = `
+You are a text summarizer/compressor.
+Your goal is to reduce the following text to its core meaning, maintaining key information but removing fluff.
+If the text is already short, return it as is.
+Target length: ~40-60% of original.
+
+Output strictly the summarized text. Do not add "Here is the summary" or markers.
+`;
+
+    try {
+      // If text is extremely short, skip LLM to save latency
+      if (text.length < 100) return text;
+
+      const response = await queryLLM(text, systemPrompt);
+      return response.trim();
+    } catch (err) {
+      console.warn("ApiSummarizer failed, falling back to mock:", err);
+      return this.fallback.summarize(text);
+    }
   }
 }

@@ -8,8 +8,8 @@ import {
   addToCache,
   getCacheStats,
   type CacheMatch,
-} from "@/lib/cache";
-import { simulateLLMResponse } from "@/lib/mockLLM";
+} from "@/lib/cacheHybrid";
+import { queryLLM } from "@/lib/llmClient";
 import { compressor } from "@/lib/compression";
 import { GOLDEN_EXAMPLE } from "@/lib/compression/goldenExample";
 import { filterAndRatePrompt, filterAndRateLocal, type FilterRateResult } from "@/lib/filterAndRating";
@@ -78,7 +78,7 @@ const Chat = () => {
       const compressed = await compressor.compress(fullPrompt);
 
       // 2. Send the compressed prompt to the LLM
-      const response = await simulateLLMResponse(compressed.compressedWithDictionary);
+      const response = await queryLLM(compressed.compressedWithDictionary);
 
       // 3. Cache ONLY if the filter says this prompt is cache-eligible
       let entry;

@@ -5,7 +5,7 @@
 import type { CompressionOptions, CompressionResult } from './types';
 import { tokenCounter } from './tokenCounter';
 import { securityLoader } from './securityLoader';
-import { MockSummarizer, type Summarizer } from './summarizer';
+import { ApiSummarizer, MockSummarizer, type Summarizer } from './summarizer';
 
 // ── Constants ────────────────────────────────────────────────────────
 
@@ -414,7 +414,7 @@ export class RAGCompressor {
   // STAGE 6 – LLM-based Summarization (only when aggressive=true)
   // ──────────────────────────────────────────────────────────────────
 
-  private summarizer: Summarizer = new MockSummarizer();
+  private summarizer: Summarizer = new ApiSummarizer();
 
   /** Replace the default mock summarizer with a custom backend */
   setSummarizer(s: Summarizer): void {

@@ -78,10 +78,10 @@ const PromptRating = () => {
   const globalAvg =
     totalPrompts > 0
       ? Math.round(
-          (ratedUsers.reduce((s, u) => s + u.prompts.reduce((ps, p) => ps + p.rating, 0), 0) /
-            totalPrompts) *
-            10,
-        ) / 10
+        (ratedUsers.reduce((s, u) => s + u.prompts.reduce((ps, p) => ps + p.rating, 0), 0) /
+          totalPrompts) *
+        10,
+      ) / 10
       : 0;
 
   if (!session) return null;
@@ -239,19 +239,19 @@ const PromptRating = () => {
                                 {user.fullName} — Prompt Ratings ({user.prompts.length})
                               </DialogTitle>
                             </DialogHeader>
-                            <ScrollArea className="flex-1 max-h-[60vh]">
+                            <div className="flex-1 overflow-y-auto max-h-[60vh] pr-4">
                               {user.prompts.length === 0 ? (
                                 <p className="text-sm text-muted-foreground py-8 text-center">
                                   No prompts yet
                                 </p>
                               ) : (
-                                <div className="space-y-3 pr-4">
+                                <div className="space-y-3">
                                   {user.prompts.map((p, i) => (
                                     <RatedPromptCard key={i} prompt={p} />
                                   ))}
                                 </div>
                               )}
-                            </ScrollArea>
+                            </div>
                           </DialogContent>
                         </Dialog>
                       </td>
@@ -297,9 +297,8 @@ function RatedPromptCard({ prompt }: { prompt: UserPromptEntry }) {
       {/* Score bar */}
       <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
         <div
-          className={`h-full rounded-full transition-all ${
-            score >= 7 ? "bg-green-500" : score >= 4 ? "bg-yellow-500" : "bg-red-500"
-          }`}
+          className={`h-full rounded-full transition-all ${score >= 7 ? "bg-green-500" : score >= 4 ? "bg-yellow-500" : "bg-red-500"
+            }`}
           style={{ width: `${score * 10}%` }}
         />
       </div>

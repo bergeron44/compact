@@ -3,14 +3,13 @@
 // ============================================
 //
 // Provides an abstraction over a prompt classifier/rater.
-// Currently ships with a deterministic MockPromptClassifier;
-// swap in a real LLM backend later by implementing the
-// PromptClassifier interface (see ApiPromptClassifier example).
+// Defaults to ApiPromptClassifier (Real LLM) with Mock fallback.
 //
 // Pattern matches: compression/summarizer.ts (Summarizer interface)
 // ============================================
 
 import { ratePrompt } from './mockLLM';
+import { queryLLM } from './llmClient';
 
 // ============================================
 // INTERFACE
@@ -24,30 +23,18 @@ export interface FilterRateResult {
 
 /**
  * Interface for a prompt classifier + rater.
- * Implementations may call a local/remote LLM or use deterministic rules (mock).
- *
- * To swap in a real LLM later, implement this interface and call:
- *   `promptClassifier.setBackend(new ApiPromptClassifier())`
  */
 export interface PromptClassifier {
   filterAndRate(prompt: string): Promise<FilterRateResult>;
 }
 
 // ============================================
-// MOCK IMPLEMENTATION  (deterministic, no API needed)
+// MOCK IMPLEMENTATION  (deterministic fallback)
 // ============================================
 
 /**
  * Mock classifier that uses heuristic regex rules + the existing
- * `ratePrompt` scorer to simulate what an LLM classifier would produce.
- *
- * Filter logic:
- *   - Checks for instruction patterns (EN + HE) → shouldCache = false
- *   - Checks for question/information patterns  → shouldCache = true
- *   - Defaults to shouldCache = false (conservative)
- *
- * Rating logic:
- *   - Delegates to `ratePrompt()` from mockLLM.ts
+ * `ratePrompt` scorer. Used when the API is unreachable.
  */
 export class MockPromptClassifier implements PromptClassifier {
   async filterAndRate(prompt: string): Promise<FilterRateResult> {
@@ -104,10 +91,52 @@ export class MockPromptClassifier implements PromptClassifier {
     // ── rating via existing ratePrompt ───────────────────
     const { score, reason } = ratePrompt(prompt);
 
-    // Simulate async delay like a real LLM would have
-    await new Promise((r) => setTimeout(r, 50 + Math.random() * 100));
-
     return { shouldCache, rating: score, reason };
+  }
+}
+
+// ============================================
+// API IMPLEMENTATION (Real LLM)
+// ============================================
+
+export class ApiPromptClassifier implements PromptClassifier {
+  private fallback = new MockPromptClassifier();
+
+  async filterAndRate(prompt: string): Promise<FilterRateResult> {
+    const systemPrompt = `
+You are a Prompt Classifier for a semantic cache system.
+Your goal is to decide if a user prompt is worth caching (is it a reusable question?) and rate its quality (1-10).
+
+Output JSON only in this format:
+{
+  "shouldCache": boolean, // true if it's a general question/explanation, false if it's a specific code request or action
+  "rating": number,       // 1-10 based on clarity and detail
+  "reason": "string"      // brief explanation
+}
+
+Examples:
+- "What is RAG?" -> {"shouldCache": true, "rating": 9, "reason": "Clear concept question"}
+- "Write a python script to fetch google.com" -> {"shouldCache": false, "rating": 8, "reason": "Specific code generation request"}
+- "fix this bug" -> {"shouldCache": false, "rating": 2, "reason": "Vague imperative instruction"}
+`;
+
+    try {
+      const responseText = await queryLLM(prompt, systemPrompt);
+
+      // Clean up markdown code blocks if present (Gemini sometimes adds them)
+      const cleanJson = responseText.replace(/```json\n?|\n?```/g, '').trim();
+
+      const data = JSON.parse(cleanJson);
+
+      return {
+        shouldCache: Boolean(data.shouldCache),
+        rating: Math.max(1, Math.min(10, Number(data.rating) || 5)),
+        reason: String(data.reason || "Rated by LLM"),
+      };
+    } catch (err) {
+      console.warn("ApiPromptClassifier failed, falling back to mock:", err);
+      return this.fallback.filterAndRate(prompt);
+    }
   }
 }
 
@@ -117,18 +146,12 @@ export class MockPromptClassifier implements PromptClassifier {
 
 /**
  * Central prompt classifier instance.
- * Uses MockPromptClassifier by default.
- * To switch to a real LLM backend:
- *
- * ```ts
- * import { promptClassifier, ApiPromptClassifier } from '@/lib/filterAndRating';
- * promptClassifier.setBackend(new ApiPromptClassifier());
- * ```
+ * Defaults to ApiPromptClassifier (Real LLM).
  */
 class PromptClassifierService {
-  private backend: PromptClassifier = new MockPromptClassifier();
+  private backend: PromptClassifier = new ApiPromptClassifier();
 
-  /** Replace the default mock classifier with a custom backend */
+  /** Replace the default classifier with a custom backend */
   setBackend(classifier: PromptClassifier) {
     this.backend = classifier;
   }
@@ -147,54 +170,6 @@ class PromptClassifierService {
 export const promptClassifier = new PromptClassifierService();
 
 // ============================================
-// API IMPLEMENTATION  (for future use)
-// ============================================
-//
-// Example implementation that calls POST /api/filter-and-rate.
-// Uncomment and use when you have a real LLM backend:
-//
-// ```ts
-// const API_BASE = import.meta.env.VITE_EMBED_API_URL || '/api';
-//
-// export class ApiPromptClassifier implements PromptClassifier {
-//   private timeoutMs: number;
-//
-//   constructor(timeoutMs = 3000) {
-//     this.timeoutMs = timeoutMs;
-//   }
-//
-//   async filterAndRate(prompt: string): Promise<FilterRateResult> {
-//     const controller = new AbortController();
-//     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
-//
-//     const res = await fetch(`${API_BASE}/filter-and-rate`, {
-//       method: 'POST',
-//       headers: { 'Content-Type': 'application/json' },
-//       body: JSON.stringify({ prompt }),
-//       signal: controller.signal,
-//     });
-//     clearTimeout(timer);
-//
-//     if (!res.ok) throw new Error(`API returned ${res.status}`);
-//     const data = await res.json();
-//
-//     // Validate + clamp
-//     return {
-//       shouldCache: Boolean(data.shouldCache),
-//       rating: Math.max(1, Math.min(10, Math.round(data.rating))),
-//       reason: String(data.reason ?? ''),
-//     };
-//   }
-// }
-// ```
-//
-// To activate:
-//   promptClassifier.setBackend(new ApiPromptClassifier());
-//
-// The server endpoint already exists at POST /api/filter-and-rate
-// in server/index.js.
-
-// ============================================
 // CONVENIENCE EXPORTS
 // ============================================
 
@@ -207,9 +182,7 @@ export async function filterAndRatePrompt(prompt: string): Promise<FilterRateRes
 }
 
 /**
- * Direct local-only fallback (always uses mock, ignoring
- * whatever backend is configured). Useful as a guaranteed
- * fallback if the API call fails.
+ * Direct local-only fallback (always uses mock).
  */
 const mockFallback = new MockPromptClassifier();
 export function filterAndRateLocal(prompt: string): Promise<FilterRateResult> {

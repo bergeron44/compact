@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getSession, clearSession } from "@/lib/session";
 import { addUserPrompt } from "@/lib/userStore";
-import { checkCache, addToCache, getCacheStats } from "@/lib/cache";
-import { simulateLLMResponse } from "@/lib/mockLLM";
+import { checkCache, addToCache, getCacheStats } from "@/lib/cacheHybrid";
+import { queryLLM } from "@/lib/llmClient";
 import { Button } from "@/components/ui/button";
 import ChatMessage, { type ChatMessageData } from "@/components/ChatMessage";
 import ChatSidebar from "@/components/ChatSidebar";
@@ -61,7 +61,7 @@ const Chat = () => {
       addUserPrompt(session.employeeId, query);
       setMessages((prev) => [...prev, assistantMsg]);
     } else {
-      const response = await simulateLLMResponse(query);
+      const response = await queryLLM(query);
       const entry = addToCache(session.employeeId, query, response);
       addUserPrompt(session.employeeId, query);
       const assistantMsg: ChatMessageData = {

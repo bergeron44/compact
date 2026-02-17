@@ -1,4 +1,4 @@
-import { getCacheStats } from "@/lib/cache";
+import { getCacheStats } from "@/lib/cacheHybrid";
 import { BarChart3, Database, Percent, Zap, Trash2, LayoutDashboard, Users, SplitSquareHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";

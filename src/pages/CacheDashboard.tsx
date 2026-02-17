@@ -8,7 +8,7 @@ import {
   deleteCacheEntries,
   exportCacheAsJSON,
   type CacheEntry,
-} from "@/lib/cache";
+} from "@/lib/cacheHybrid";  // Changed from "@/lib/cache"
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -243,21 +243,19 @@ const CacheDashboard = () => {
           <div className="flex items-center gap-1 border rounded-lg p-0.5">
             <button
               onClick={() => setOwnerFilter("all")}
-              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                ownerFilter === "all"
+              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${ownerFilter === "all"
                   ? "bg-primary text-primary-foreground"
                   : "hover:bg-muted text-muted-foreground"
-              }`}
+                }`}
             >
               All Org
             </button>
             <button
               onClick={() => setOwnerFilter("mine")}
-              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                ownerFilter === "mine"
+              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${ownerFilter === "mine"
                   ? "bg-primary text-primary-foreground"
                   : "hover:bg-muted text-muted-foreground"
-              }`}
+                }`}
             >
               My Entries
             </button>
