@@ -30,3 +30,4 @@ coverage/
 
 # Vite
 .vite/
+chroma_data/
