@@ -80,6 +80,7 @@ const Chat = () => {
       // 2. Send the compressed prompt to the LLM
       const response = await queryLLM(compressed.compressedWithDictionary);
 
+      console.log(`[Chat] Filter Result for "${query}":`, fr);
       // 3. Cache ONLY if the filter says this prompt is cache-eligible
       let entry;
       if (fr.shouldCache) {

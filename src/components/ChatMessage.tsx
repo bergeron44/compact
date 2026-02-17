@@ -1,5 +1,5 @@
 import { format } from "date-fns";
-import { ChevronDown, Cpu, Zap } from "lucide-react";
+import { ChevronDown, Cpu, Zap, Database } from "lucide-react";
 import { useState } from "react";
 import type { CacheEntry } from "@/lib/cache";
 
@@ -29,23 +29,26 @@ const ChatMessage = ({ message }: Props) => {
   return (
     <div className={`flex ${isUser ? "justify-end" : "justify-start"} mb-4`}>
       <div
-        className={`max-w-[75%] rounded-2xl px-4 py-3 ${
-          isUser
-            ? "bg-primary text-primary-foreground rounded-br-md"
-            : "bg-card border rounded-bl-md"
-        }`}
+        className={`max-w-[75%] rounded-2xl px-4 py-3 ${isUser
+          ? "bg-primary text-primary-foreground rounded-br-md"
+          : "bg-card border rounded-bl-md"
+          }`}
       >
         <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.content}</p>
 
         {!isUser && message.cacheEntry && (
           <div className="mt-3 pt-3 border-t border-border/50 space-y-2">
             <div className="flex items-center gap-3 flex-wrap">
-              {message.cached && (
+              {message.cached ? (
                 <span className="inline-flex items-center gap-1 text-[11px] font-mono font-medium px-2 py-0.5 rounded-full bg-accent text-accent-foreground">
                   <Zap className="w-3 h-3" /> From Cache
                   {message.similarity != null && (
                     <span className="opacity-90"> (sim: {(message.similarity * 100).toFixed(1)}%)</span>
                   )}
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 text-[11px] font-mono font-medium px-2 py-0.5 rounded-full bg-green-100 text-green-700 border border-green-200">
+                  <Database className="w-3 h-3" /> New in Cache
                 </span>
               )}
               <span className="inline-flex items-center gap-1 text-[11px] font-mono text-muted-foreground">

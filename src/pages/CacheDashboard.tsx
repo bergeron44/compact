@@ -8,7 +8,7 @@ import {
   deleteCacheEntries,
   exportCacheAsJSON,
   type CacheEntry,
-} from "@/lib/cacheHybrid";  // Changed from "@/lib/cache"
+} from "@/lib/cacheHybrid";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -64,6 +64,7 @@ const CHART_COLORS = [
   "hsl(190, 55%, 40%)",
 ];
 
+
 const CacheDashboard = () => {
   const navigate = useNavigate();
   const session = getSession();
@@ -71,8 +72,10 @@ const CacheDashboard = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [filter, setFilter] = useState<FilterMode>("all");
   const [sortBy, setSortBy] = useState<SortField>("createdAt");
-  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [selected, setSelected] = useState<Set<string | number>>(new Set());
   const [detailEntry, setDetailEntry] = useState<CacheEntry | null>(null);
+
+
 
   const projectId = session?.projectName ?? "";
   const [ownerFilter, setOwnerFilter] = useState<"all" | "mine">("all");
@@ -96,7 +99,8 @@ const CacheDashboard = () => {
   }, [loadData, refreshKey]);
 
   const filteredEntries = useMemo(() => {
-    let entries = allEntries.map((e, i) => ({ ...e, _index: i }));
+    // We don't strictly need _index anymore if we use IDs
+    let entries = [...allEntries];
 
     // Owner filter (My entries vs All org entries)
     if (ownerFilter === "mine" && session) {
@@ -128,11 +132,11 @@ const CacheDashboard = () => {
     return null;
   }
 
-  const toggleSelect = (idx: number) => {
+  const toggleSelect = (id: string | number) => {
     setSelected((prev) => {
       const next = new Set(prev);
-      if (next.has(idx)) next.delete(idx);
-      else next.add(idx);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   };
@@ -141,7 +145,9 @@ const CacheDashboard = () => {
     if (selected.size === filteredEntries.length) {
       setSelected(new Set());
     } else {
-      setSelected(new Set(filteredEntries.map((e) => e._index)));
+      // Filter out entries without ID (shouldn't happen)
+      const ids = filteredEntries.map(e => e.id).filter((id): id is string | number => id !== undefined);
+      setSelected(new Set(ids));
     }
   };
 
@@ -151,8 +157,8 @@ const CacheDashboard = () => {
     setRefreshKey((p) => p + 1);
   };
 
-  const handleDeleteOne = async (index: number) => {
-    await deleteCacheEntries(projectId, [index]);
+  const handleDeleteOne = async (id: string | number) => {
+    await deleteCacheEntries(projectId, [id]);
     setDetailEntry(null);
     setRefreshKey((p) => p + 1);
   };
@@ -214,14 +220,15 @@ const CacheDashboard = () => {
             Cache Dashboard — {projectId}
           </span>
         </div>
-        <Button variant="ghost" size="sm" onClick={() => navigate("/chat")}>
-          <ArrowLeft className="w-4 h-4 mr-1.5" />
-          Back to Chat
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="sm" onClick={() => navigate("/chat")}>
+            <ArrowLeft className="w-4 h-4 mr-1.5" />
+            Back to Chat
+          </Button>
+        </div>
       </header>
 
-      <div className="flex-1 overflow-y-auto p-6 space-y-6">
-        {/* Metrics */}
+      <div className="flex-1 overflow-y-auto p-6 space-y-6">        {/* Metrics */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <MetricCard icon={<Database className="w-5 h-5" />} label="Total Cached" value={stats.totalQueries} />
           <MetricCard icon={<Zap className="w-5 h-5" />} label="Total Cache Hits" value={stats.totalHits} />
@@ -244,8 +251,8 @@ const CacheDashboard = () => {
             <button
               onClick={() => setOwnerFilter("all")}
               className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${ownerFilter === "all"
-                  ? "bg-primary text-primary-foreground"
-                  : "hover:bg-muted text-muted-foreground"
+                ? "bg-primary text-primary-foreground"
+                : "hover:bg-muted text-muted-foreground"
                 }`}
             >
               All Org
@@ -253,8 +260,8 @@ const CacheDashboard = () => {
             <button
               onClick={() => setOwnerFilter("mine")}
               className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${ownerFilter === "mine"
-                  ? "bg-primary text-primary-foreground"
-                  : "hover:bg-muted text-muted-foreground"
+                ? "bg-primary text-primary-foreground"
+                : "hover:bg-muted text-muted-foreground"
                 }`}
             >
               My Entries
@@ -327,11 +334,11 @@ const CacheDashboard = () => {
                   </tr>
                 )}
                 {filteredEntries.map((entry) => (
-                  <tr key={entry._index} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
+                  <tr key={entry.id ?? Math.random()} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
                     <td className="p-3">
                       <Checkbox
-                        checked={selected.has(entry._index)}
-                        onCheckedChange={() => toggleSelect(entry._index)}
+                        checked={entry.id !== undefined && selected.has(entry.id)}
+                        onCheckedChange={() => entry.id !== undefined && toggleSelect(entry.id)}
                       />
                     </td>
                     <td className="p-3 max-w-[200px]">
@@ -377,7 +384,7 @@ const CacheDashboard = () => {
                           variant="ghost"
                           size="sm"
                           className="h-7 w-7 p-0 text-destructive hover:text-destructive"
-                          onClick={() => handleDeleteOne(entry._index)}
+                          onClick={() => entry.id !== undefined && handleDeleteOne(entry.id)}
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </Button>
@@ -497,8 +504,7 @@ const CacheDashboard = () => {
                 size="sm"
                 className="w-full"
                 onClick={() => {
-                  const idx = (detailEntry as CacheEntry & { _index?: number })._index;
-                  if (typeof idx === "number") handleDeleteOne(idx);
+                  if (detailEntry.id !== undefined) handleDeleteOne(detailEntry.id);
                 }}
               >
                 <Trash2 className="w-3.5 h-3.5 mr-1.5" />

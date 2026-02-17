@@ -7,11 +7,20 @@ from .models import (
     CacheLookupRequest,
     CacheLookupResponse,
     CacheLookupResult,
+    CacheStatsResponse,
+    CacheDeleteRequest,
+    CacheClearRequest,
+    CacheHitRequest,
     DataInsertionRequest,
     DataInsertionResponse,
+    SecurityMappingResponse,
     LLMCompletionRequest,
     LLMCompletionResponse,
     StoredEntry,
+    UserRegisterRequest,
+    UserResponse,
+    PromptActivityRequest,
+    PromptActivityResponse,
 )
 
 logger = logging.getLogger(__name__)
@@ -30,33 +39,81 @@ async def health():
 
 @router.post("/cache/lookup", response_model=CacheLookupResponse)
 async def cache_lookup(body: CacheLookupRequest, request: Request):
-    """Lookup cached prompt by similarity search.
-    
-    Args:
-        body: Cache lookup request
-        request: FastAPI request object
-        
-    Returns:
-        Cache lookup response with matching entries
-        
-    Raises:
-        HTTPException: If lookup fails
-    """
-    logger.info("Lookup request: project_id=%s, user_id=%s", body.project_id, body.user_id)
+    """Lookup cached prompt by similarity search."""
+    logger.info("Lookup request: project_id=%s, user_id=%s, limit=%d", body.project_id, body.user_id, body.limit)
     
     cache_handler = request.app.state.cache_handler
     
     try:
         # Create project namespace if it doesn't exist
         if body.project_id not in cache_handler.project_namespaces:
-            cache_handler.create_project_namespace(body.project_id)
+            try:
+                cache_handler.create_project_namespace(body.project_id)
+            except ValueError:
+                pass
         
-        # Lookup cached prompt
-        entry = await cache_handler.lookup_prompt(body.project_id, body.prompt)
+        # Lookup cached prompts
+        entries = await cache_handler.lookup_prompt(
+            body.project_id, 
+            body.prompt, 
+            limit=body.limit,
+            threshold=body.threshold
+        )
         
-        if entry:
-            # Return ALL fields including compression metrics
-            results = [CacheLookupResult(
+        results = []
+        for entry in entries:
+            results.append(CacheLookupResult(
+                entry_id=entry.entry_id,
+                key=entry.prompt,
+                value=entry.answer,
+                score=entry.score,
+                compressed_prompt=entry.compressed_prompt,
+                compression_ratio=entry.compression_ratio,
+                original_tokens=entry.original_tokens,
+                compressed_tokens=entry.compressed_tokens,
+                hit_count=entry.times_accessed,
+                created_at=entry.created_at.isoformat(),
+                last_accessed=entry.last_accessed_at.isoformat(),
+                employee_id=entry.user_id,
+            ))
+            
+        if results:
+            return CacheLookupResponse(found=True, results=results)
+        else:
+            return CacheLookupResponse(found=False, results=[])
+    
+    except Exception as e:
+        logger.error("Lookup error: %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/cache/stats", response_model=CacheStatsResponse)
+async def cache_stats(project_id: str, request: Request):
+    """Get usage statistics for the project."""
+    cache_handler = request.app.state.cache_handler
+    try:
+        stats = cache_handler.get_project_stats(project_id)
+        return CacheStatsResponse(
+            project_id=project_id,
+            total_entries=stats.get("total_entries", 0),
+            total_hits=stats.get("total_hits", 0),
+            avg_compression=stats.get("avg_compression", 0.0),
+        )
+    except Exception as e:
+        logger.error("Stats error: %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/cache/entries", response_model=list[CacheLookupResult])
+async def list_entries(project_id: str, request: Request, limit: int = 100, offset: int = 0):
+    """List entries for a project."""
+    cache_handler = request.app.state.cache_handler
+    try:
+        entries = cache_handler.list_entries(project_id, limit, offset)
+        results = []
+        for entry in entries:
+            results.append(CacheLookupResult(
+                entry_id=entry.entry_id,
                 key=entry.prompt,
                 value=entry.answer,
                 score=1.0,
@@ -68,19 +125,50 @@ async def cache_lookup(body: CacheLookupRequest, request: Request):
                 created_at=entry.created_at.isoformat(),
                 last_accessed=entry.last_accessed_at.isoformat(),
                 employee_id=entry.user_id,
-            )]
-            logger.info(
-                "Lookup HIT: project_id=%s, entry_id=%s, compression=%d%%, tokens=%d→%d",
-                body.project_id, entry.entry_id, entry.compression_ratio,
-                entry.original_tokens, entry.compressed_tokens
-            )
-            return CacheLookupResponse(found=True, results=results)
-        else:
-            logger.info("Lookup MISS: project_id=%s", body.project_id)
-            return CacheLookupResponse(found=False, results=[])
-    
+            ))
+        return results
     except Exception as e:
-        logger.error("Lookup error: %s", e)
+        logger.error("List entries error: %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/cache/delete")
+async def delete_entries(body: CacheDeleteRequest, request: Request):
+    """Delete specific entries."""
+    cache_handler = request.app.state.cache_handler
+    try:
+        count = cache_handler.delete_entries(body.project_id, body.entry_ids)
+        return {"deleted": count}
+    except Exception as e:
+        logger.error("Delete error: %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/cache/hit")
+async def register_cache_hit(body: CacheHitRequest, request: Request):
+    """Increment hit count for a cache entry."""
+    cache_handler = request.app.state.cache_handler
+    try:
+        success = cache_handler.increment_entry_hit(body.project_id, body.entry_id)
+        if not success:
+             raise HTTPException(status_code=404, detail="Entry not found")
+        return {"status": "ok"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Cache hit update error: %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/cache/clear")
+async def clear_cache(body: CacheClearRequest, request: Request):
+    """Clear all entries for a project."""
+    cache_handler = request.app.state.cache_handler
+    try:
+        count = cache_handler.clear_project_cache(body.project_id)
+        return {"deleted": count}
+    except Exception as e:
+        logger.error("Clear cache error: %s", e)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -108,8 +196,14 @@ async def cache_insert(body: DataInsertionRequest, request: Request):
     
     try:
         # Create project namespace if it doesn't exist
+        # Check safely without race condition ideally, but here just catching the specific error or key check
         if body.project_id not in cache_handler.project_namespaces:
-            cache_handler.create_project_namespace(body.project_id)
+            try:
+                cache_handler.create_project_namespace(body.project_id)
+            except ValueError:
+                logger.info("Namespace race condition caught for project: %s", body.project_id)
+                pass # Already exists, race condition or just created
+
         
         # Cache with ALL compression metrics
         entry_id = await cache_handler.cache_prompt(
@@ -227,13 +321,240 @@ async def api_embed(body: EmbedRequest, request: Request):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/api/health")
-async def api_health(request: Request):
-    """Legacy health check that also reports model configuration."""
-    embedding_provider = request.app.state.embedding_provider
-    model_name = getattr(embedding_provider, "model_name", "unknown")
-    return {
-        "status": "ok",
-        "model": model_name,
-        "hasApiKey": True,
-    }
+
+# ------------------------------------------------------------------
+# Security Endpoints
+# ------------------------------------------------------------------
+
+SECURITY_MAPPINGS = {
+    "confidential_password": "[REDACTED_PWD]",
+    "secret_api_key": "[REDACTED_KEY]",
+    "internal_server_name": "[REDACTED_SERVER]",
+    "private_access_token": "[REDACTED_TOKEN]",
+    "admin_credentials": "[REDACTED_CREDS]",
+    "in order to": "to",
+    "as a result of": "because",
+    "due to the fact that": "because",
+    "at this point in time": "now",
+    "in the event that": "if",
+    "for the purpose of": "for",
+    "with regard to": "regarding",
+    "in spite of the fact that": "although",
+    "it is important to note that": "note:",
+    "as previously mentioned": "previously",
+    "in the context of": "in",
+    "with respect to": "regarding",
+    "on the basis of": "based on",
+    "in accordance with": "per",
+    "a large number of": "many",
+    "a significant amount of": "much",
+    "at the present time": "now",
+    "in the near future": "soon",
+    "prior to the start of": "before",
+    "subsequent to": "after",
+    "in the absence of": "without",
+    "for the reason that": "because",
+    "in light of the fact that": "since",
+    "despite the fact that": "although",
+    "has the ability to": "can",
+    "is able to": "can",
+    "make a decision": "decide",
+    "take into consideration": "consider",
+    "come to the conclusion": "conclude",
+    "give an indication of": "indicate",
+    "have an effect on": "affect",
+    "is indicative of": "indicates",
+    "is in accordance with": "matches",
+    "on a daily basis": "daily",
+    "in a timely manner": "promptly",
+    "at all times": "always",
+    "PowerStore": "₪1",
+    "PowerFlex": "₪2",
+    "PowerScale": "₪3",
+    "PowerEdge": "₪4",
+    "PowerVault": "₪5",
+    "PowerConnect": "₪6",
+    "PowerMax": "₪7",
+    "PowerProtect": "₪8",
+    "EqualLogic": "₪9",
+    "Compellent": "₪10",
+    "Isilon": "₪11",
+    "XtremIO": "₪12",
+    "VMAX": "₪13",
+    "VxRail": "₪14",
+    "Unity": "₪15",
+    "VNX": "₪16",
+    "NetWorker": "₪17",
+    "Avamar": "₪18",
+    "CloudIQ": "₪19",
+    "APEX": "₪20",
+    "DataIQ": "₪21",
+    "OpenManage": "₪22",
+    "OneFS": "₪23",
+    "SyncIQ": "₪24",
+    "SRDF": "₪25",
+    "TimeFinder": "₪26",
+    "RecoverPoint": "₪27",
+    "Wyse": "₪28",
+    "OptiPlex": "₪29",
+    "Latitude": "₪30",
+    "Inspiron": "₪31",
+    "Alienware": "₪32",
+    "XPS": "₪33",
+    "ProSupport": "₪34",
+    "ProDeploy": "₪35",
+    "DataDomain": "₪36",
+    "ScaleIO": "₪37",
+    "VPLEX": "₪38",
+    "ViPR": "₪39",
+    "ECS": "₪40",
+    "CloudLink": "₪41",
+    "SecureWorks": "₪42",
+    "Precision": "₪43",
+    "vxBlock": "₪44",
+    "VxRack": "₪45"
+}
+
+@router.get("/security/mappings", response_model=SecurityMappingResponse)
+async def get_security_mappings():
+    """Get security and term substitution mappings."""
+    return SecurityMappingResponse(mappings=SECURITY_MAPPINGS)
+
+
+# ------------------------------------------------------------------
+# User Management Endpoints
+# ------------------------------------------------------------------
+
+@router.post("/users/register", response_model=UserResponse)
+async def register_user(body: UserRegisterRequest, request: Request):
+    """Register a new user."""
+    cache_handler = request.app.state.cache_handler
+    try:
+        # Use DB handler to upsert user
+        user_data = cache_handler.upsert_user(
+            employee_id=body.employee_id, 
+            full_name=body.full_name, 
+            project_name=body.project_name
+        )
+        
+        return UserResponse(
+            employee_id=user_data["employee_id"],
+            full_name=user_data["full_name"],
+            project_name=user_data["project_name"],
+            registered_at=user_data["registered_at"]
+        )
+    except Exception as e:
+        logger.error("Register user error: %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/users/{employee_id}", response_model=UserResponse)
+async def get_user(employee_id: str, request: Request):
+    """Get user details."""
+    cache_handler = request.app.state.cache_handler
+    try:
+        user_data = cache_handler.get_user(employee_id)
+        if not user_data:
+            raise HTTPException(status_code=404, detail="User not found")
+            
+        return UserResponse(
+            employee_id=user_data["employee_id"],
+            full_name=user_data["full_name"],
+            project_name=user_data["project_name"],
+            registered_at=user_data["registered_at"]
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Get user error: %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/users", response_model=list[UserResponse])
+async def list_users(limit: int = 100, offset: int = 0, request: Request = None):
+    """List all registered users."""
+    # Note: request is default-None to avoid injection error if not provided in call signature, 
+    # but FastAPI injects it.
+    cache_handler = request.app.state.cache_handler
+    try:
+        users = cache_handler.list_users(limit, offset)
+        results = []
+        for u in users:
+            results.append(UserResponse(
+                employee_id=u["employee_id"],
+                full_name=u["full_name"],
+                project_name=u["project_name"],
+                registered_at=u["registered_at"]
+            ))
+        return results
+    except Exception as e:
+        logger.error("List users error: %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
+# ------------------------------------------------------------------
+# Prompt History Endpoints
+# ------------------------------------------------------------------
+
+@router.post("/prompts/activity", response_model=PromptActivityResponse)
+async def record_prompt_activity(body: PromptActivityRequest, request: Request):
+    """Record prompt usage activity."""
+    cache_handler = request.app.state.cache_handler
+    try:
+        activity_id = cache_handler.record_prompt_activity(
+            employee_id=body.employee_id,
+            project_id=body.project_id,
+            query_text=body.query_text,
+            cached=body.cached,
+            rating=body.rating,
+            rating_reason=body.rating_reason
+        )
+        
+        # We need to return the full response. 
+        # Ideally, record_prompt_activity should return the full object or we fetch it.
+        # For efficiency, we construct it here since we know what we sent.
+        # But we need the timestamp generated by the handler for perfect accuracy.
+        # Let's trust the handler's timestamp or fetch it back if critical. 
+        # For now, we'll re-use current time close enough or fetch from DB.
+        
+        # Let's fetch it back to be "perfect"
+        # Not efficient but safer for verification.
+        # Actually, `get_prompt_history` returns list.
+        # Let's just return what we have with a fresh timestamp.
+        
+        from datetime import datetime, timezone
+        return PromptActivityResponse(
+            id=activity_id,
+            employee_id=body.employee_id,
+            project_id=body.project_id,
+            query_text=body.query_text,
+            timestamp=datetime.now(timezone.utc).isoformat(),
+            cached=body.cached,
+            rating=body.rating,
+            rating_reason=body.rating_reason
+        )
+    except Exception as e:
+        logger.error("Record activity error: %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/prompts/history", response_model=list[PromptActivityResponse])
+async def get_prompt_history(employee_id: str, request: Request, limit: int = 100):
+    """Get prompt history for a user."""
+    cache_handler = request.app.state.cache_handler
+    try:
+        history_data = cache_handler.get_prompt_history(employee_id, limit)
+        results = []
+        for item in history_data:
+            results.append(PromptActivityResponse(
+                id=item["id"],
+                employee_id=item["employee_id"],
+                project_id=item["project_id"],
+                query_text=item["query_text"],
+                timestamp=item["timestamp"],
+                cached=item["cached"],
+                rating=item["rating"],
+                rating_reason=item["rating_reason"]
+            ))
+        return results
+    except Exception as e:
+        logger.error("Get history error: %s", e)
+        raise HTTPException(status_code=500, detail=str(e))

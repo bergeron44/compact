@@ -11,19 +11,21 @@ class SecurityLoader {
   async load(): Promise<void> {
     if (this.loaded) return;
 
-    try {
-      console.log('[SecurityLoader] Loading encryption mappings...');
+    const CACHE_SERVICE_URL = import.meta.env.VITE_CACHE_SERVICE_URL || 'http://localhost:8000';
 
-      const response = await fetch('/data/encryption.json');
+    try {
+      console.log('[SecurityLoader] Fetching encryption mappings from service...');
+
+      const response = await fetch(`${CACHE_SERVICE_URL}/security/mappings`);
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
-      const data = (await response.json()) as { mappings?: SecurityMappings };
+      const data = await response.json();
       this.mappings = data.mappings || {};
       this.loaded = true;
 
-      console.log(`[SecurityLoader] Loaded ${Object.keys(this.mappings).length} mappings`);
+      console.log(`[SecurityLoader] Loaded ${Object.keys(this.mappings).length} mappings from service`);
     } catch (error) {
-      console.warn('[SecurityLoader] Could not load encryption.json, using fallback:', error);
+      console.warn('[SecurityLoader] Service unreachable, using fallback mappings:', error);
 
       // Fallback: basic term substitutions
       this.mappings = {

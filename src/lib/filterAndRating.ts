@@ -103,29 +103,36 @@ export class ApiPromptClassifier implements PromptClassifier {
   private fallback = new MockPromptClassifier();
 
   async filterAndRate(prompt: string): Promise<FilterRateResult> {
-    const systemPrompt = `
-You are a Prompt Classifier for a semantic cache system.
-Your goal is to decide if a user prompt is worth caching (is it a reusable question?) and rate its quality (1-10).
+    // We embed instructions in the user prompt to force the LLM to pay attention,
+    // as some models ignore system prompts for short user queries.
+    const combinedPrompt = `
+### INSTRUCTIONS ###
+You are a Prompt Classifier. DO NOT answer the user's question.
+Analyze the following user input and output a JSON object.
 
-Output JSON only in this format:
-{
-  "shouldCache": boolean, // true if it's a general question/explanation, false if it's a specific code request or action
-  "rating": number,       // 1-10 based on clarity and detail
-  "reason": "string"      // brief explanation
-}
+1. "shouldCache": true if it's a conceptual question (what/how/why), false if it's a specific code request/instruction.
+2. "rating": 1-10 quality score.
+3. "reason": Brief explanation.
 
-Examples:
-- "What is RAG?" -> {"shouldCache": true, "rating": 9, "reason": "Clear concept question"}
-- "Write a python script to fetch google.com" -> {"shouldCache": false, "rating": 8, "reason": "Specific code generation request"}
-- "fix this bug" -> {"shouldCache": false, "rating": 2, "reason": "Vague imperative instruction"}
+### USER INPUT ###
+"${prompt}"
+
+### OUTPUT FORMAT ###
+Return ONLY valid JSON:
+{ "shouldCache": boolean, "rating": number, "reason": "string" }
 `;
 
     try {
-      const responseText = await queryLLM(prompt, systemPrompt);
+      // Pass empty system prompt since we embedded it
+      const responseText = await queryLLM(combinedPrompt, "");
 
-      // Clean up markdown code blocks if present (Gemini sometimes adds them)
-      const cleanJson = responseText.replace(/```json\n?|\n?```/g, '').trim();
+      // Robust JSON extraction: look for the first object {...}
+      const jsonMatch = responseText.match(/\{[\s\S]*?\}/);
+      if (!jsonMatch) {
+        throw new Error("No JSON object found in response: " + responseText.substring(0, 100));
+      }
 
+      const cleanJson = jsonMatch[0];
       const data = JSON.parse(cleanJson);
 
       return {
@@ -134,7 +141,8 @@ Examples:
         reason: String(data.reason || "Rated by LLM"),
       };
     } catch (err) {
-      console.warn("ApiPromptClassifier failed, falling back to mock:", err);
+      console.warn("ApiPromptClassifier failed, falling back to mock. Error:", err);
+      // Fallback to local regex heuristic
       return this.fallback.filterAndRate(prompt);
     }
   }

@@ -1,16 +1,12 @@
-import { localDB } from './db';
+import { checkCacheServiceHealth } from "@/lib/cacheServiceApi";
 
-export async function migrateToIndexedDB(): Promise<void> {
-  const migrated = localStorage.getItem('indexeddb_migration_complete');
-  if (migrated === 'true') return;
-
-  console.log('[Compact] Starting migration from localStorage to IndexedDB...');
-
-  try {
-    await localDB.migrateFromLocalStorage();
-    localStorage.setItem('indexeddb_migration_complete', 'true');
-    console.log('[Compact] Migration completed successfully.');
-  } catch (error) {
-    console.error('[Compact] Migration failed:', error);
-  }
+export async function migrateToIndexedDB() {
+    // Migration is no longer needed as we are using the centralized service.
+    // We will just verify the service is available.
+    const health = await checkCacheServiceHealth();
+    if (health.available) {
+        console.log("[Migration] Service is available. Legacy migration skipped.");
+    } else {
+        console.warn("[Migration] Service is UNAVAILABLE. App may not function correctly.");
+    }
 }
