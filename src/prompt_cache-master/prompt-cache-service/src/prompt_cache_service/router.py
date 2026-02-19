@@ -21,6 +21,7 @@ from .models import (
     UserResponse,
     PromptActivityRequest,
     PromptActivityResponse,
+    VoteRequest,
 )
 
 logger = logging.getLogger(__name__)
@@ -129,6 +130,18 @@ async def list_entries(project_id: str, request: Request, limit: int = 100, offs
         return results
     except Exception as e:
         logger.error("List entries error: %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/cache/vote")
+async def vote_entry(body: VoteRequest, request: Request):
+    """Vote on a cache entry (like/dislike)."""
+    cache_handler = request.app.state.cache_handler
+    try:
+        likes, dislikes = cache_handler.vote_entry(body.project_id, body.entry_id, body.vote_type)
+        return {"likes": likes, "dislikes": dislikes}
+    except Exception as e:
+        logger.error("Vote error: %s", e)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -245,9 +258,19 @@ async def llm_complete(body: LLMCompletionRequest, request: Request):
         HTTPException: If completion fails
     """
     logger.info("LLM completion request: provider=%s, prompt_len=%d",
-                request.app.state.llm_provider.name, len(body.prompt))
+                body.provider or request.app.state.llm_provider.name, len(body.prompt))
     
-    llm_provider = request.app.state.llm_provider
+    # Use requested provider if specified, otherwise default
+    if body.provider == "free":
+         # Force use of Mock provider (or a specific free one if configured)
+         from .llm_provider import MockLLMProvider
+         llm_provider = MockLLMProvider()
+    elif body.provider:
+         # In a real app, we might switch factory. For now, we only support switching to 'mock' via 'free'
+         # or using the default.
+         llm_provider = request.app.state.llm_provider
+    else:
+         llm_provider = request.app.state.llm_provider
     
     try:
         response_text = await llm_provider.complete(body.prompt, body.system_prompt)

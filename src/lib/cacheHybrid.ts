@@ -18,6 +18,7 @@ import {
     type CacheMatch,
     recordPromptActivityService,
     incrementCacheHitService,
+    voteCacheEntryService,
 } from './cacheServiceApi';
 
 import { getSession } from './session';
@@ -101,6 +102,10 @@ export async function acceptCacheHit(dbId: string | number): Promise<void> {
 export async function exportCacheAsJSON(projectId: string): Promise<string> {
     const entries = await getCacheEntries(projectId);
     return JSON.stringify(entries, null, 2);
+}
+
+export async function voteCacheEntry(projectId: string, entryId: string | number, voteType: 'like' | 'dislike') {
+    return voteCacheEntryService(projectId, entryId, voteType);
 }
 
 export type { CacheEntry, CacheMatch };

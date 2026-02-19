@@ -7,6 +7,7 @@ import {
   getCacheEntries,
   deleteCacheEntries,
   exportCacheAsJSON,
+  voteCacheEntry,
   type CacheEntry,
 } from "@/lib/cacheHybrid";
 import { Button } from "@/components/ui/button";
@@ -36,6 +37,8 @@ import {
   Download,
   Eye,
   Monitor,
+  ThumbsUp,
+  ThumbsDown,
 } from "lucide-react";
 import {
   BarChart,
@@ -161,6 +164,26 @@ const CacheDashboard = () => {
     await deleteCacheEntries(projectId, [id]);
     setDetailEntry(null);
     setRefreshKey((p) => p + 1);
+  };
+
+  const handleVote = async (entry: CacheEntry, type: 'like' | 'dislike') => {
+    if (entry.id === undefined) return;
+
+    // 1. Optimistic update (optional, but let's wait for server response to be sure)
+    // Actually, let's just wait for the response and then update local state
+    // instead of refetching everything.
+
+    const newCounts = await voteCacheEntry(projectId, entry.id, type);
+
+    setAllEntries(prev => prev.map(e => {
+      if (e.id === entry.id) {
+        return { ...e, likes: newCounts.likes, dislikes: newCounts.dislikes };
+      }
+      return e;
+    }));
+
+    // We don't need to trigger a full refresh anymore
+    // setRefreshKey((p) => p + 1);
   };
 
   const handleExport = async () => {
@@ -320,6 +343,7 @@ const CacheDashboard = () => {
                   <th className="p-3 text-center font-medium text-muted-foreground">Compression</th>
                   <th className="p-3 text-left font-medium text-muted-foreground">Cached At</th>
                   <th className="p-3 text-left font-medium text-muted-foreground">Last Accessed</th>
+                  <th className="p-3 text-center font-medium text-muted-foreground">Votes</th>
                   <th className="p-3 text-center font-medium text-muted-foreground">Actions</th>
                 </tr>
               </thead>
@@ -369,6 +393,24 @@ const CacheDashboard = () => {
                     </td>
                     <td className="p-3 text-xs text-muted-foreground font-mono">
                       {format(new Date(entry.lastAccessed), "MMM dd, HH:mm")}
+                    </td>
+                    <td className="p-3 text-center">
+                      <div className="flex items-center justify-center gap-2">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleVote(entry, 'like'); }}
+                          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-green-600 transition-colors"
+                        >
+                          <ThumbsUp className="w-3.5 h-3.5" />
+                          <span>{entry.likes || 0}</span>
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleVote(entry, 'dislike'); }}
+                          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-red-600 transition-colors"
+                        >
+                          <ThumbsDown className="w-3.5 h-3.5" />
+                          <span>{entry.dislikes || 0}</span>
+                        </button>
+                      </div>
                     </td>
                     <td className="p-3 text-center">
                       <div className="flex items-center justify-center gap-1">

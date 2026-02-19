@@ -38,6 +38,13 @@ class CacheHitRequest(BaseModel):
     entry_id: str
 
 
+class VoteRequest(BaseModel):
+    """Request model for voting on a cache entry."""
+    project_id: str
+    entry_id: str
+    vote_type: str  # "like" or "dislike"
+
+
 class CacheLookupResult(BaseModel):
     """Single cache lookup result with full metadata."""
     entry_id: str
@@ -51,8 +58,11 @@ class CacheLookupResult(BaseModel):
     original_tokens: int
     compressed_tokens: int
     
+    
     # Metadata
     hit_count: int
+    likes: int = 0
+    dislikes: int = 0
     created_at: str
     last_accessed: str
     employee_id: str
@@ -93,6 +103,7 @@ class LLMCompletionRequest(BaseModel):
     """Request model for LLM completion endpoint."""
     prompt: str
     system_prompt: str = ""
+    provider: Optional[str] = None  # e.g., "dell", "gemini", "mock", "free"
 
 
 class LLMCompletionResponse(BaseModel):

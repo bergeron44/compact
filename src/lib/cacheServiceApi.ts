@@ -27,6 +27,8 @@ export interface CacheEntry {
     employeeId?: string;
     /** Internal ID (number for IndexedDB, string for Service) */
     id?: string | number;
+    likes?: number;
+    dislikes?: number;
 }
 
 export interface CacheMatch {
@@ -53,6 +55,8 @@ interface CacheLookupResponse {
         created_at: string;
         last_accessed: string;
         employee_id: string;
+        likes: number;
+        dislikes: number;
     }>;
 }
 
@@ -127,6 +131,8 @@ export async function checkCacheFromService(
                 createdAt: result.created_at,
                 lastAccessed: result.last_accessed,
                 employeeId: result.employee_id,
+                likes: result.likes,
+                dislikes: result.dislikes,
             };
 
             return {
@@ -271,6 +277,8 @@ export async function findTopCacheMatchesService(
                 createdAt: r.created_at,
                 lastAccessed: r.last_accessed,
                 employeeId: r.employee_id,
+                likes: r.likes,
+                dislikes: r.dislikes,
             },
             similarity: r.score,
             _dbId: r.entry_id, // String UUID
@@ -331,6 +339,8 @@ export async function getCacheEntriesService(projectId: string): Promise<CacheEn
             createdAt: r.created_at,
             lastAccessed: r.last_accessed,
             employeeId: r.employee_id,
+            likes: r.likes,
+            dislikes: r.dislikes,
         }));
     } catch (err) {
         console.error('List entries error:', err);
@@ -392,5 +402,28 @@ export async function recordPromptActivityService(
         });
     } catch (err) {
         console.error('Record activity error:', err);
+    }
+}
+
+export async function voteCacheEntryService(
+    projectId: string,
+    entryId: string | number,
+    voteType: 'like' | 'dislike'
+): Promise<{ likes: number; dislikes: number }> {
+    try {
+        const res = await fetch(`${CACHE_SERVICE_URL}/cache/vote`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                project_id: projectId,
+                entry_id: String(entryId),
+                vote_type: voteType
+            }),
+        });
+        if (!res.ok) return { likes: 0, dislikes: 0 };
+        return await res.json();
+    } catch (err) {
+        console.error('Vote error:', err);
+        return { likes: 0, dislikes: 0 };
     }
 }

@@ -40,6 +40,8 @@ class CachedPromptEntry:
     original_tokens: int = 0
     compressed_tokens: int = 0
     score: float = 1.0
+    likes: int = 0
+    dislikes: int = 0
 
 
 NS = TypeVar("NS")
@@ -159,6 +161,11 @@ class CacheDbHandler(ABC, Generic[NS]):
         """Increment the hit count for a specific entry."""
         ...
 
+    @abstractmethod
+    def vote_entry(self, project_id: str, entry_id: str, vote_type: str) -> tuple[int, int]:
+        """Vote on an entry (like/dislike). Returns (likes, dislikes)."""
+        ...
+
     async def cache_prompt(
         self,
         project_id: str,
@@ -188,6 +195,8 @@ class CacheDbHandler(ABC, Generic[NS]):
                 created_at=now,
                 times_accessed=1,
                 last_accessed_at=now,
+                likes=0,
+                dislikes=0,
             )
             self._push_entry(entry)
             self._logger.info("Cached prompt: entry_id=%s, project_id=%s", entry.entry_id, project_id)
@@ -203,16 +212,41 @@ class CacheDbHandler(ABC, Generic[NS]):
         limit: int = 1,
         threshold: float = 0.8,
     ) -> list[CachedPromptEntry]:
-        """Look up cached entries by semantic similarity."""
+        """Look up cached entries by semantic similarity with hybrid ranking."""
         key_embeddings = await self._embed_engine.embed(prompt)
-        entries = self._pull_entry(project_id, key_embeddings, limit=limit, threshold=threshold)
         
-        if not entries:
+        # 1. Fetch more candidates than requested to allow re-ranking
+        # Fetch 3x limit to get a good candidate pool
+        candidates = self._pull_entry(project_id, key_embeddings, limit=limit * 3, threshold=threshold)
+        
+        if not candidates:
             self._logger.info("Lookup miss: no results, project_id=%s", project_id)
             return []
 
-        self._logger.info("Lookup hit: found %d matches, project_id=%s", len(entries), project_id)
-        return entries
+        # 2. Hybrid Ranking Logic
+        # effective_score = similarity + boost
+        # boost = max(-0.1, min(0.2, (likes - dislikes) * 0.01))
+        # This means 10 net likes = +0.1 similarity. Cap at +0.2.
+        
+        ranked_candidates = []
+        for entry in candidates:
+            net_votes = entry.likes - entry.dislikes
+            # Cap boost between -0.1 and +0.2
+            vote_boost = max(-0.1, min(0.2, net_votes * 0.01))
+            hybrid_score = entry.score + vote_boost
+            
+            # Use a tuple for sorting: (hybrid_score, original_score)
+            ranked_candidates.append((hybrid_score, entry))
+        
+        # Sort descending by hybrid score
+        ranked_candidates.sort(key=lambda x: x[0], reverse=True)
+        
+        # Take top `limit`
+        final_entries = [x[1] for x in ranked_candidates[:limit]]
+
+        self._logger.info("Lookup hit: found %d matches (from %d candidates), project_id=%s", 
+                          len(final_entries), len(candidates), project_id)
+        return final_entries
 
 
 class ChromaDbHandler(CacheDbHandler[chromadb.Collection]):
@@ -274,6 +308,8 @@ class ChromaDbHandler(CacheDbHandler[chromadb.Collection]):
                 "created_at": entry.created_at.isoformat(),
                 "times_accessed": entry.times_accessed,
                 "last_accessed_at": entry.last_accessed_at.isoformat(),
+                "likes": entry.likes,
+                "dislikes": entry.dislikes,
             }],
         )
 
@@ -334,6 +370,8 @@ class ChromaDbHandler(CacheDbHandler[chromadb.Collection]):
                 created_at=datetime.fromisoformat(meta.get("created_at", datetime.now(timezone.utc).isoformat())),
                 times_accessed=meta.get("times_accessed", 0),
                 last_accessed_at=datetime.fromisoformat(meta.get("last_accessed_at", datetime.now(timezone.utc).isoformat())),
+                likes=meta.get("likes", 0),
+                dislikes=meta.get("dislikes", 0),
                 score=similarity
             )
             entries.append(entry)
@@ -414,6 +452,8 @@ class ChromaDbHandler(CacheDbHandler[chromadb.Collection]):
                 created_at=datetime.fromisoformat(meta.get("created_at", datetime.now(timezone.utc).isoformat())),
                 times_accessed=meta.get("times_accessed", 0),
                 last_accessed_at=datetime.fromisoformat(meta.get("last_accessed_at", datetime.now(timezone.utc).isoformat())),
+                likes=meta.get("likes", 0),
+                dislikes=meta.get("dislikes", 0),
             )
             entries.append(entry)
         
@@ -586,3 +626,36 @@ class ChromaDbHandler(CacheDbHandler[chromadb.Collection]):
         except Exception as e:
             self._logger.error("Failed to increment hit for %s: %s", entry_id, e)
             return False
+    def vote_entry(self, project_id: str, entry_id: str, vote_type: str) -> tuple[int, int]:
+        """Vote on an entry. Returns (new_likes, new_dislikes)."""
+        collection = self._get_project_namespace(project_id)
+        if collection is None:
+            return 0, 0
+            
+        try:
+            res = collection.get(ids=[entry_id], include=["metadatas"])
+            if not res["ids"]:
+                return 0, 0
+                
+            meta = res["metadatas"][0]
+            current_likes = meta.get("likes", 0)
+            current_dislikes = meta.get("dislikes", 0)
+            
+            if vote_type == "like":
+                current_likes += 1
+            elif vote_type == "dislike":
+                current_dislikes += 1
+            # else: unknown vote type, do nothing
+            
+            # Update metadata
+            meta["likes"] = current_likes
+            meta["dislikes"] = current_dislikes
+            
+            collection.update(
+                ids=[entry_id],
+                metadatas=[meta]
+            )
+            return current_likes, current_dislikes
+        except Exception as e:
+            self._logger.error("Failed to vote for %s: %s", entry_id, e)
+            return 0, 0

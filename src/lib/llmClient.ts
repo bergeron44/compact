@@ -23,9 +23,10 @@ export interface LLMCompletionResult {
  */
 export async function queryLLM(
     prompt: string,
-    systemPrompt?: string
+    systemPrompt?: string,
+    provider?: string
 ): Promise<string> {
-    const result = await queryLLMWithMeta(prompt, systemPrompt);
+    const result = await queryLLMWithMeta(prompt, systemPrompt, provider);
     return result.response;
 }
 
@@ -34,7 +35,8 @@ export async function queryLLM(
  */
 export async function queryLLMWithMeta(
     prompt: string,
-    systemPrompt?: string
+    systemPrompt?: string,
+    provider?: string
 ): Promise<LLMCompletionResult> {
     try {
         const res = await fetch(`${CACHE_SERVICE_URL}/llm/complete`, {
@@ -43,6 +45,7 @@ export async function queryLLMWithMeta(
             body: JSON.stringify({
                 prompt,
                 system_prompt: systemPrompt ?? "",
+                provider,
             }),
         });
 

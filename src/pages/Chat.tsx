@@ -16,7 +16,7 @@ import { filterAndRatePrompt, filterAndRateLocal, type FilterRateResult } from "
 import { Button } from "@/components/ui/button";
 import ChatMessage, { type ChatMessageData } from "@/components/ChatMessage";
 import ChatSidebar from "@/components/ChatSidebar";
-import { LogOut, Monitor, Send, Loader2, Database, ArrowRight, X, Clock } from "lucide-react";
+import { LogOut, Monitor, Send, Loader2, Database, ArrowRight, X, Clock, ThumbsUp, ThumbsDown, Zap } from "lucide-react";
 import { format } from "date-fns";
 
 const Chat = () => {
@@ -59,7 +59,7 @@ const Chat = () => {
   if (!session) return null;
 
   // ── Send prompt to LLM (with Golden Example appended) ────────────
-  const handleSendToLLM = async (query: string, filterResult?: FilterRateResult) => {
+  const handleSendToLLM = async (query: string, filterResult?: FilterRateResult, provider?: string) => {
     setLoading(true);
     try {
       // If no filterResult was provided, compute one now
@@ -78,7 +78,7 @@ const Chat = () => {
       const compressed = await compressor.compress(fullPrompt);
 
       // 2. Send the compressed prompt to the LLM
-      const response = await queryLLM(compressed.compressedWithDictionary);
+      const response = await queryLLM(compressed.compressedWithDictionary, undefined, provider);
 
       console.log(`[Chat] Filter Result for "${query}":`, fr);
       // 3. Cache ONLY if the filter says this prompt is cache-eligible
@@ -199,6 +199,29 @@ const Chat = () => {
     const { query, filterResult } = pendingSuggestions;
     setPendingSuggestions(null);
     await handleSendToLLM(query, filterResult);
+  };
+
+  const handleSendFreeModel = async () => {
+    if (!pendingSuggestions) return;
+    const { query, filterResult, matches } = pendingSuggestions;
+    setPendingSuggestions(null);
+
+    // Use the context of the best match if available?
+    // The requirement says: "Use Cache Context + Free Model".
+    // We can just append the cached answer to the prompt similar to how Golden Example is used, 
+    // but `handleSendToLLM` already appends Golden Example.
+    // If we want to use the *cached answer* as context, we might need modify `handleSendToLLM` or 
+    // construct a special prompt here.
+    // However, usually "Use Cache Context" means "Use the retrieved chunks if RAG" or 
+    // "Use the logic that we found a similar prompt". 
+    // Given the user instructions: "This option will take the user's prompt + the best matching cached answer (as context) and send it to the LLM endpoint specifying the 'free' provider."
+
+    const bestMatch = matches[0];
+    const promptWithContext = query + "\n\n---\n\nReference Answer from Cache:\n" + bestMatch.entry.llmResponse;
+
+    // We send this modified prompt. Note: handleSendToLLM will append Golden Example too.
+    // That's probably fine.
+    await handleSendToLLM(promptWithContext, filterResult, "free");
   };
 
   // ── Dismiss suggestions without sending ──────────────────────────
@@ -325,9 +348,12 @@ const Chat = () => {
                           : match.entry.queryText}
                       </span>
                       <span className="shrink-0 text-[10px] font-mono text-muted-foreground flex items-center gap-1">
-                        <Clock className="w-3 h-3" />
                         {format(new Date(match.entry.createdAt), "MMM dd, HH:mm")}
                       </span>
+                      <div className="flex items-center gap-2 px-2 py-0.5 rounded bg-muted/50 text-[10px] text-muted-foreground font-mono">
+                        <span className="flex items-center gap-0.5"><ThumbsUp className="w-2.5 h-2.5" />{match.entry.likes || 0}</span>
+                        <span className="flex items-center gap-0.5"><ThumbsDown className="w-2.5 h-2.5" />{match.entry.dislikes || 0}</span>
+                      </div>
                       <span className="shrink-0 text-[11px] font-mono font-semibold px-2 py-0.5 rounded-full bg-primary/10 text-primary">
                         {(match.similarity * 100).toFixed(1)}% match
                       </span>
@@ -344,6 +370,23 @@ const Chat = () => {
                 >
                   <Send className="w-3.5 h-3.5 mr-2" />
                   Send to LLM anyway
+                </Button>
+
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="w-full mt-1 bg-green-100 text-green-800 hover:bg-green-200 border-green-200 h-auto py-2 flex-col items-start gap-1"
+                  onClick={handleSendFreeModel}
+                >
+                  <div className="flex items-center gap-2 font-medium">
+                    <Zap className="w-3.5 h-3.5" />
+                    Generate with Free Model
+                  </div>
+                  {pendingSuggestions.matches[0] && (
+                    <div className="text-[10px] opacity-80 text-left line-clamp-1 w-full pl-6">
+                      Using context: "{pendingSuggestions.matches[0].entry.queryText}"
+                    </div>
+                  )}
                 </Button>
               </div>
             </div>
