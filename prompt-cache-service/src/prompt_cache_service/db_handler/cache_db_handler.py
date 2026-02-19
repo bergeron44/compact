@@ -5,7 +5,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Generic, TypeVar
-from prompt_cache_service.db_handler.embedding import EmbeddingEngine
+from prompt_cache_service.db_handler.embedding import EmbeddingProvider
 
 import chromadb
 
@@ -54,7 +54,7 @@ class CacheDbHandler(ABC, Generic[NS]):
     implementation (e.g. ``chromadb.Collection`` for :class:`ChromaDbHandler`).
     """
 
-    def __init__(self, embed_engine: EmbeddingEngine):
+    def __init__(self, embed_engine: EmbeddingProvider):
         """Initialize the handler with an embedding engine.
 
         Args:
@@ -254,7 +254,7 @@ class ChromaDbHandler(CacheDbHandler[chromadb.Collection]):
 
     def __init__(
         self,
-        embed_engine: EmbeddingEngine,
+        embed_engine: EmbeddingProvider,
         persist_dir: str | None = None,
     ):
         super().__init__(embed_engine)
