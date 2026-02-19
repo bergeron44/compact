@@ -362,32 +362,32 @@ const Chat = () => {
                   ))}
                 </div>
 
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full mt-1"
-                  onClick={handleSendAnyway}
-                >
-                  <Send className="w-3.5 h-3.5 mr-2" />
-                  Send to LLM anyway
-                </Button>
-
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  className="w-full mt-1 bg-green-100 text-green-800 hover:bg-green-200 border-green-200 h-auto py-2 flex-col items-start gap-1"
-                  onClick={handleSendFreeModel}
-                >
-                  <div className="flex items-center gap-2 font-medium">
-                    <Zap className="w-3.5 h-3.5" />
-                    Generate with Free Model
-                  </div>
-                  {pendingSuggestions.matches[0] && (
-                    <div className="text-[10px] opacity-80 text-left line-clamp-1 w-full pl-6">
-                      Using context: "{pendingSuggestions.matches[0].entry.queryText}"
+                <div className="flex gap-2 mt-2">
+                  <Button
+                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white shadow-sm h-auto flex flex-col justify-center"
+                    onClick={handleSendAnyway}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Send className="w-4 h-4" />
+                      Send to LLM
                     </div>
-                  )}
-                </Button>
+                  </Button>
+
+                  <Button
+                    className="flex-1 bg-green-600 hover:bg-green-700 text-white h-auto py-2 flex-col items-start gap-0.5 shadow-sm"
+                    onClick={handleSendFreeModel}
+                  >
+                    <div className="flex items-center gap-2 font-medium">
+                      <Zap className="w-4 h-4 fill-current" />
+                      Free Model
+                    </div>
+                    {pendingSuggestions.matches[0] && (
+                      <div className="text-[10px] opacity-90 font-light text-left w-full truncate max-w-[200px]">
+                        Context: "{pendingSuggestions.matches[0].entry.queryText}"
+                      </div>
+                    )}
+                  </Button>
+                </div>
               </div>
             </div>
           )}
