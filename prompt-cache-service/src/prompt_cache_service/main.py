@@ -12,6 +12,10 @@ from prompt_cache_service.db_handler.embedding import initialize_embeddings_prov
 from prompt_cache_service.extraction import PlaceholderExtractionModel
 from prompt_cache_service.router import router
 from prompt_cache_service.dell_certs import update_certifi_with_dell_certs
+from prompt_cache_service.llm_provider import (
+    GeminiLLMProvider,
+    MockLLMProvider,
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -38,7 +42,7 @@ async def lifespan(app: FastAPI):
     update_certifi_with_dell_certs()
 
     # Initialize embedding provider with smart fallback:
-    # Priority: HuggingFace (if key exists) > Dell GenAI (if credentials) > Placeholder
+    # Priority: HuggingFace (if key exists) > Placeholder
     embedding_provider = initialize_embeddings_provider()
 
     # Initialize ChromaDB cache handler
@@ -52,15 +56,8 @@ async def lifespan(app: FastAPI):
     app.state.extraction_model = PlaceholderExtractionModel()
 
     # ── Initialize LLM provider (Resilient Chain) ────────────────────
-    # Build a chain of providers: Gemini → OpenRouter → Dell → Mock
+    # Build a chain of providers: Gemini → Mock
     # ResilientLLMProvider tries each in order; Mock always last.
-    from prompt_cache_service.llm_provider import (
-        GeminiLLMProvider,
-        OpenRouterLLMProvider,
-        DellGenAILLMProvider,
-        MockLLMProvider,
-        ResilientLLMProvider,
-    )
 
     chain: list = []
 
@@ -77,47 +74,9 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             logger.warning(f"Gemini init failed: {e}")
 
-    # 2. OpenRouter (100+ models via single key)
-    openrouter_key = os.getenv("OPENROUTER_API_KEY")
-    if openrouter_key:
-        try:
-            or_model = os.getenv(
-                "OPENROUTER_MODEL", "meta-llama/llama-3.3-70b-instruct:free"
-            )
-            chain.append(
-                OpenRouterLLMProvider(api_key=openrouter_key, model_name=or_model)
-            )
-            logger.info("✅ OpenRouter added to chain (model: %s)", or_model)
-        except Exception as e:
-            logger.warning(f"OpenRouter init failed: {e}")
 
-    # 3. Dell GenAI (internal)
-    use_sso = os.getenv("DELL_USE_SSO", "false").lower() == "true"
-    client_id = os.getenv("DELL_CLIENT_ID")
-    client_secret = os.getenv("DELL_CLIENT_SECRET")
-    dell_llm_model = os.getenv("DELL_LLM_MODEL")
-
-    if dell_llm_model and (use_sso or (client_id and client_secret)):
-        try:
-            if use_sso:
-                chain.append(
-                    DellGenAILLMProvider(model_name=dell_llm_model, use_sso=True)
-                )
-            else:
-                chain.append(
-                    DellGenAILLMProvider(
-                        model_name=dell_llm_model,
-                        use_sso=False,
-                        client_id=client_id,
-                        client_secret=client_secret,
-                    )
-                )
-            logger.info("✅ Dell GenAI added to chain")
-        except Exception as e:
-            logger.warning(f"Dell GenAI LLM init failed: {e}")
-
-    # 4. Mock always added as final fallback by ResilientLLMProvider
-    llm_provider = ResilientLLMProvider(chain)
+    # 2. Mock always added as final fallback by ResilientLLMProvider
+    llm_provider = MockLLMProvider()
     app.state.llm_provider = llm_provider
 
     yield
