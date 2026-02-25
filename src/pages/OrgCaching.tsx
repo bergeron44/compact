@@ -22,9 +22,13 @@ const OrgCaching = () => {
     if (!session) navigate("/");
   }, [session, navigate]);
 
-  // Load users asynchronously
+  // Load users asynchronously and poll every 30s for cross-user updates
   useEffect(() => {
     getAllOrgUsers().then(setOrgUsers).catch(console.error);
+    const interval = setInterval(() => {
+      getAllOrgUsers().then(setOrgUsers).catch(console.error);
+    }, 30_000);
+    return () => clearInterval(interval);
   }, []);
 
   if (!session) return null;

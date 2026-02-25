@@ -54,6 +54,11 @@ const PromptRating = () => {
 
   useEffect(() => {
     getAllOrgUsers().then(setOrgUsers).catch(console.error);
+    // Poll every 30s for cross-user updates
+    const interval = setInterval(() => {
+      getAllOrgUsers().then(setOrgUsers).catch(console.error);
+    }, 30_000);
+    return () => clearInterval(interval);
   }, []);
 
   // Use stored ratings from DB (computed at insert time)

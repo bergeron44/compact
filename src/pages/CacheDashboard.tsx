@@ -99,6 +99,9 @@ const CacheDashboard = () => {
 
   useEffect(() => {
     loadData();
+    // Poll every 30s to pick up other users' cache entries and stats
+    const interval = setInterval(loadData, 30_000);
+    return () => clearInterval(interval);
   }, [loadData, refreshKey]);
 
   const filteredEntries = useMemo(() => {

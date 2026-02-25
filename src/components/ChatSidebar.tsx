@@ -19,6 +19,12 @@ const ChatSidebar = ({ projectId, onClearChat, refreshKey, isOpen = true, onClos
   useEffect(() => {
     if (!projectId) return;
     getCacheStats(projectId).then(setStats).catch(console.error);
+
+    // Poll every 30s to pick up other users' activity
+    const interval = setInterval(() => {
+      getCacheStats(projectId).then(setStats).catch(console.error);
+    }, 30_000);
+    return () => clearInterval(interval);
   }, [projectId, refreshKey]);
 
   const handleNav = (path: string) => {
