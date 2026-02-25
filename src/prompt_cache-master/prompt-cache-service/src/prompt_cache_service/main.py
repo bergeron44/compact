@@ -175,13 +175,16 @@ app = FastAPI(
 # Add CORS middleware for frontend access
 # In production, set ALLOWED_ORIGINS env var to your frontend URL (comma-separated)
 # e.g. ALLOWED_ORIGINS=https://compact-frontend.onrender.com
+# Note: allow_credentials=True cannot be used with allow_origins=["*"] per CORS spec.
+# When ALLOWED_ORIGINS is "*" (wildcard), we disable credentials to allow all origins.
 _allowed_origins_raw = os.getenv("ALLOWED_ORIGINS", "*")
-_allowed_origins = [o.strip() for o in _allowed_origins_raw.split(",") if o.strip()]
+_is_wildcard = _allowed_origins_raw.strip() == "*"
+_allowed_origins = ["*"] if _is_wildcard else [o.strip() for o in _allowed_origins_raw.split(",") if o.strip()]
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_allowed_origins,
-    allow_credentials=True,
+    allow_credentials=not _is_wildcard,  # credentials not allowed with wildcard
     allow_methods=["*"],
     allow_headers=["*"],
 )
