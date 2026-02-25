@@ -235,18 +235,18 @@ const CacheDashboard = () => {
   return (
     <div className="flex flex-col h-screen">
       {/* Header */}
-      <header className="flex items-center justify-between px-6 py-3 border-b bg-card shrink-0">
-        <div className="flex items-center gap-3">
+      <header className="flex items-center justify-between px-3 sm:px-6 py-3 border-b bg-card shrink-0">
+        <div className="flex items-center gap-2">
           <Monitor className="w-5 h-5 text-primary" />
           <span className="font-semibold text-sm tracking-tight">Dell Compact</span>
-          <span className="text-xs font-mono text-muted-foreground px-2 py-0.5 bg-muted rounded">
+          <span className="hidden sm:inline text-xs font-mono text-muted-foreground px-2 py-0.5 bg-muted rounded">
             Cache Dashboard — {projectId}
           </span>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="ghost" size="sm" onClick={() => navigate("/chat")}>
-            <ArrowLeft className="w-4 h-4 mr-1.5" />
-            Back to Chat
+            <ArrowLeft className="w-4 h-4 sm:mr-1.5" />
+            <span className="hidden sm:inline">Back to Chat</span>
           </Button>
         </div>
       </header>
@@ -260,8 +260,8 @@ const CacheDashboard = () => {
         </div>
 
         {/* Search, Filter, Sort, Bulk Actions */}
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="relative flex-1 min-w-[200px] max-w-sm">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+          <div className="relative flex-1 min-w-[160px] max-w-sm">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
               placeholder="Search queries..."
@@ -324,8 +324,55 @@ const CacheDashboard = () => {
           </div>
         </div>
 
-        {/* Table */}
-        <div className="border rounded-lg overflow-hidden bg-card">
+        {/* Mobile card list */}
+        <div className="sm:hidden space-y-3">
+          {filteredEntries.length === 0 && (
+            <p className="text-center text-muted-foreground py-8 text-sm">
+              {allEntries.length === 0 ? "No cache entries yet." : "No entries match your filters."}
+            </p>
+          )}
+          {filteredEntries.map((entry) => (
+            <div key={entry.id ?? Math.random()} className="border rounded-lg bg-card p-4 space-y-2">
+              <p className="text-xs font-mono font-medium truncate">{entry.queryText}</p>
+              <p className="text-xs text-muted-foreground truncate">{entry.llmResponse.slice(0, 80)}…</p>
+              <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
+                <span className="inline-flex items-center gap-1 font-mono">
+                  <Zap className="w-3 h-3" />{entry.hitCount} hits
+                </span>
+                <span>{entry.compressionRatio}% compression</span>
+                <span>{format(new Date(entry.createdAt), "MMM dd")}</span>
+              </div>
+              <div className="flex items-center gap-2 pt-1">
+                <button
+                  onClick={() => handleVote(entry, 'like')}
+                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-green-600 transition-colors"
+                >
+                  <ThumbsUp className="w-3.5 h-3.5" />{entry.likes || 0}
+                </button>
+                <button
+                  onClick={() => handleVote(entry, 'dislike')}
+                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-red-600 transition-colors"
+                >
+                  <ThumbsDown className="w-3.5 h-3.5" />{entry.dislikes || 0}
+                </button>
+                <div className="ml-auto flex gap-1">
+                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => setDetailEntry(entry)}>
+                    <Eye className="w-3.5 h-3.5" />
+                  </Button>
+                  <Button
+                    variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive hover:text-destructive"
+                    onClick={() => entry.id !== undefined && handleDeleteOne(entry.id)}
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Desktop table */}
+        <div className="hidden sm:block border rounded-lg overflow-hidden bg-card">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -439,7 +486,6 @@ const CacheDashboard = () => {
           </div>
         </div>
 
-        {/* Charts */}
         {allEntries.length > 0 && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Top queries bar chart */}

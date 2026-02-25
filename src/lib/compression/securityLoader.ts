@@ -14,16 +14,12 @@ class SecurityLoader {
     const CACHE_SERVICE_URL = import.meta.env.VITE_CACHE_SERVICE_URL || 'http://localhost:8000';
 
     try {
-      console.log('[SecurityLoader] Fetching encryption mappings from service...');
-
       const response = await fetch(`${CACHE_SERVICE_URL}/security/mappings`);
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
       const data = await response.json();
       this.mappings = data.mappings || {};
       this.loaded = true;
-
-      console.log(`[SecurityLoader] Loaded ${Object.keys(this.mappings).length} mappings from service`);
     } catch (error) {
       console.warn('[SecurityLoader] Service unreachable, using fallback mappings:', error);
 

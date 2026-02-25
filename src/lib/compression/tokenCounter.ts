@@ -11,10 +11,8 @@ class TokenCounter {
   async init(): Promise<void> {
     if (this.initialized) return;
 
-    console.log('[TokenCounter] Initializing (cl100k_base)...');
     this.encoder = getEncoding('cl100k_base');
     this.initialized = true;
-    console.log('[TokenCounter] Ready');
   }
 
   /** Count tokens. Falls back to rough estimate if encoder not loaded. */
@@ -33,11 +31,11 @@ class TokenCounter {
 
   cleanup(): void {
     if (this.encoder) {
-      this.encoder.free();
       this.encoder = null;
       this.initialized = false;
     }
   }
+
 }
 
 export const tokenCounter = new TokenCounter();

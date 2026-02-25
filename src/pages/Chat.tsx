@@ -16,7 +16,7 @@ import { filterAndRatePrompt, filterAndRateLocal, type FilterRateResult } from "
 import { Button } from "@/components/ui/button";
 import ChatMessage, { type ChatMessageData } from "@/components/ChatMessage";
 import ChatSidebar from "@/components/ChatSidebar";
-import { LogOut, Monitor, Send, Loader2, Database, ArrowRight, X, Clock, ThumbsUp, ThumbsDown, Zap } from "lucide-react";
+import { LogOut, Monitor, Send, Loader2, Database, ArrowRight, X, Clock, ThumbsUp, ThumbsDown, Zap, Menu } from "lucide-react";
 import { format } from "date-fns";
 
 const Chat = () => {
@@ -28,6 +28,7 @@ const Chat = () => {
   const [sidebarRefresh, setSidebarRefresh] = useState(0);
   const [hitRate, setHitRate] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // ── Cache suggestions state ──────────────────────────────────────
   const [pendingSuggestions, setPendingSuggestions] = useState<{
@@ -80,7 +81,6 @@ const Chat = () => {
       // 2. Send the compressed prompt to the LLM
       const response = await queryLLM(compressed.compressedWithDictionary, undefined, provider);
 
-      console.log(`[Chat] Filter Result for "${query}":`, fr);
       // 3. Cache ONLY if the filter says this prompt is cache-eligible
       let entry;
       if (fr.shouldCache) {
@@ -244,20 +244,20 @@ const Chat = () => {
   return (
     <div className="flex flex-col h-screen">
       {/* Header */}
-      <header className="flex items-center justify-between px-6 py-3 border-b bg-card shrink-0">
-        <div className="flex items-center gap-3">
+      <header className="flex items-center justify-between px-3 sm:px-6 py-3 border-b bg-card shrink-0">
+        <div className="flex items-center gap-2 sm:gap-3">
           <Monitor className="w-5 h-5 text-primary" />
           <span className="font-semibold text-sm tracking-tight">Dell Compact</span>
-          <span className="text-xs font-mono text-muted-foreground px-2 py-0.5 bg-muted rounded">
+          <span className="hidden sm:inline text-xs font-mono text-muted-foreground px-2 py-0.5 bg-muted rounded">
             {session.projectName}
           </span>
         </div>
-        <div className="flex items-center gap-5">
-          <div className="text-xs font-mono text-muted-foreground">
+        <div className="flex items-center gap-2 sm:gap-5">
+          <div className="hidden sm:block text-xs font-mono text-muted-foreground">
             Cache Hit Rate:{" "}
             <span className="text-foreground font-semibold">{hitRate}%</span>
           </div>
-          <span className="text-sm text-muted-foreground">
+          <span className="hidden sm:inline text-sm text-muted-foreground">
             Welcome, <span className="font-medium text-foreground">{session.name}</span>
           </span>
           <Button
@@ -268,9 +268,16 @@ const Chat = () => {
               navigate("/");
             }}
           >
-            <LogOut className="w-4 h-4 mr-1.5" />
-            Logout
+            <LogOut className="w-4 h-4 sm:mr-1.5" />
+            <span className="hidden sm:inline">Logout</span>
           </Button>
+          <button
+            className="md:hidden p-1.5 rounded-md hover:bg-muted transition-colors"
+            onClick={() => setSidebarOpen(true)}
+            aria-label="Open stats"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
         </div>
       </header>
 
@@ -362,7 +369,7 @@ const Chat = () => {
                   ))}
                 </div>
 
-                <div className="flex gap-2 mt-2">
+                <div className="flex flex-col sm:flex-row gap-2 mt-2">
                   <Button
                     className="flex-1 bg-blue-600 hover:bg-blue-700 text-white shadow-sm h-auto flex flex-col justify-center"
                     onClick={handleSendAnyway}
@@ -419,6 +426,8 @@ const Chat = () => {
           projectId={session.projectName}
           onClearChat={handleClearChat}
           refreshKey={sidebarRefresh}
+          isOpen={sidebarOpen}
+          onClose={() => setSidebarOpen(false)}
         />
       </div>
     </div>

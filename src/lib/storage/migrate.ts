@@ -5,7 +5,8 @@ export async function migrateToIndexedDB() {
     // We will just verify the service is available.
     const health = await checkCacheServiceHealth();
     if (health.available) {
-        console.log("[Migration] Service is available. Legacy migration skipped.");
+        // Service is available, no migration needed
+
     } else {
         console.warn("[Migration] Service is UNAVAILABLE. App may not function correctly.");
     }

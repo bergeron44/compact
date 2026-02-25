@@ -51,10 +51,8 @@ export class RAGCompressor {
   async init(): Promise<void> {
     if (this.initialized) return;
 
-    console.log('[RAGCompressor] Initializing (V2)...');
     await Promise.all([tokenCounter.init(), securityLoader.load()]);
     this.initialized = true;
-    console.log('[RAGCompressor] Ready');
   }
 
   isReady(): boolean {

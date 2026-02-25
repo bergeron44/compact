@@ -174,6 +174,7 @@ const COST_PER_1K = 0.002;
 const CompressionView = () => {
   const navigate = useNavigate();
   const session = getSession();
+  const [mobileTab, setMobileTab] = useState<'input' | 'result'>('input');
   const [inputText, setInputText] = useState("");
   const [stages, setStages] = useState<StageResult[]>([]);
   const [activeStage, setActiveStage] = useState<number | null>(null);
@@ -301,30 +302,48 @@ const CompressionView = () => {
   return (
     <div className="flex flex-col h-screen">
       {/* Header */}
-      <header className="flex items-center justify-between px-6 py-3 border-b bg-card shrink-0">
-        <div className="flex items-center gap-3">
+      <header className="flex items-center justify-between px-3 sm:px-6 py-3 border-b bg-card shrink-0">
+        <div className="flex items-center gap-2">
           <Button variant="ghost" size="icon" onClick={() => navigate("/chat")}>
             <ArrowLeft className="w-4 h-4" />
           </Button>
           <Monitor className="w-5 h-5 text-primary" />
           <span className="font-semibold text-sm tracking-tight">Dell Compact</span>
-          <span className="text-xs font-mono text-muted-foreground px-2 py-0.5 bg-muted rounded">
+          <span className="hidden sm:inline text-xs font-mono text-muted-foreground px-2 py-0.5 bg-muted rounded">
             RAG Compressor
           </span>
         </div>
-        <div className="flex items-center gap-4">
-          <span className="text-sm text-muted-foreground">
+        <div className="flex items-center gap-2 sm:gap-4">
+          <span className="hidden sm:inline text-sm text-muted-foreground">
             <span className="font-medium text-foreground">{session.name}</span>
           </span>
           <Button variant="ghost" size="sm" onClick={() => { clearSession(); navigate("/"); }}>
-            <LogOut className="w-4 h-4 mr-1.5" /> Logout
+            <LogOut className="w-4 h-4 sm:mr-1.5" /> <span className="hidden sm:inline">Logout</span>
           </Button>
         </div>
       </header>
 
+      {/* Mobile tabs */}
+      <div className="md:hidden flex border-b bg-card shrink-0">
+        <button
+          onClick={() => setMobileTab('input')}
+          className={`flex-1 py-2.5 text-sm font-medium transition-colors border-b-2 ${mobileTab === 'input' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground'
+            }`}
+        >
+          Input
+        </button>
+        <button
+          onClick={() => setMobileTab('result')}
+          className={`flex-1 py-2.5 text-sm font-medium transition-colors border-b-2 ${mobileTab === 'result' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground'
+            }`}
+        >
+          Pipeline Results
+        </button>
+      </div>
+
       <div className="flex flex-1 overflow-hidden">
         {/* Left: Input + Controls */}
-        <div className="w-[400px] border-r flex flex-col shrink-0">
+        <div className={`md:w-[400px] md:border-r flex flex-col shrink-0 w-full md:flex ${mobileTab === 'input' ? 'flex' : 'hidden'}`}>
           <div className="px-4 py-3 border-b bg-muted/50">
             <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Input Prompt</span>
           </div>
@@ -371,7 +390,7 @@ const CompressionView = () => {
         </div>
 
         {/* Right: Pipeline Stages */}
-        <div className="flex-1 flex flex-col overflow-hidden">
+        <div className={`flex-1 flex flex-col overflow-hidden ${mobileTab === 'result' ? 'flex' : 'hidden md:flex'}`}>
           {stages.length === 0 ? (
             <div className="flex-1 flex items-center justify-center">
               <div className="text-center space-y-3">
@@ -393,11 +412,10 @@ const CompressionView = () => {
                   <div key={i} className="flex items-center gap-1">
                     <button
                       onClick={() => setActiveStage(i)}
-                      className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition-colors whitespace-nowrap ${
-                        activeStage === i
+                      className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition-colors whitespace-nowrap ${activeStage === i
                           ? "bg-primary text-primary-foreground"
                           : "bg-muted hover:bg-muted/80 text-muted-foreground"
-                      }`}
+                        }`}
                     >
                       {stage.icon}
                       {stage.name}

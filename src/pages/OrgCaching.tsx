@@ -44,30 +44,30 @@ const OrgCaching = () => {
 
   return (
     <div className="flex flex-col h-screen">
-      <header className="flex items-center justify-between px-6 py-3 border-b bg-card shrink-0">
-        <div className="flex items-center gap-3">
+      <header className="flex items-center justify-between px-3 sm:px-6 py-3 border-b bg-card shrink-0">
+        <div className="flex items-center gap-2">
           <Button variant="ghost" size="icon" onClick={() => navigate("/chat")}>
             <ArrowLeft className="w-4 h-4" />
           </Button>
           <Monitor className="w-5 h-5 text-primary" />
           <span className="font-semibold text-sm tracking-tight">Dell Compact</span>
-          <span className="text-xs font-mono text-muted-foreground px-2 py-0.5 bg-muted rounded">
+          <span className="hidden sm:inline text-xs font-mono text-muted-foreground px-2 py-0.5 bg-muted rounded">
             Organization Cache
           </span>
         </div>
-        <div className="flex items-center gap-4">
-          <span className="text-sm text-muted-foreground">
+        <div className="flex items-center gap-2">
+          <span className="hidden sm:inline text-sm text-muted-foreground">
             <span className="font-medium text-foreground">{session.name}</span>
           </span>
           <Button variant="ghost" size="sm" onClick={() => { clearSession(); navigate("/"); }}>
-            <LogOut className="w-4 h-4 mr-1.5" /> Logout
+            <LogOut className="w-4 h-4 sm:mr-1.5" /> <span className="hidden sm:inline">Logout</span>
           </Button>
         </div>
       </header>
 
       <div className="flex-1 overflow-hidden flex flex-col">
         {/* Metrics */}
-        <div className="grid grid-cols-3 gap-4 p-6 pb-4 shrink-0">
+        <div className="grid grid-cols-3 gap-3 p-4 sm:p-6 sm:pb-4 pb-3 shrink-0">
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center gap-3">
@@ -117,8 +117,50 @@ const OrgCaching = () => {
         </div>
 
         {/* Users Table */}
-        <ScrollArea className="flex-1 px-6 pb-6">
-          <div className="rounded-lg border overflow-hidden">
+        <ScrollArea className="flex-1 px-4 sm:px-6 pb-6">
+          {/* Mobile card list */}
+          <div className="sm:hidden space-y-3 mb-3">
+            {filtered.length === 0 ? (
+              <p className="text-center text-muted-foreground py-8 text-sm">No users found</p>
+            ) : (
+              filtered.map((user) => (
+                <div key={user.employeeId} className="border rounded-lg bg-card p-4 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium text-sm">{user.fullName}</p>
+                      <p className="text-xs text-muted-foreground font-mono">{user.employeeId} · {user.projectName}</p>
+                    </div>
+                    <span className="text-xs font-mono bg-accent text-accent-foreground px-2 py-0.5 rounded-full">
+                      {user.prompts.length} prompts
+                    </span>
+                  </div>
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <Button variant="outline" size="sm" className="w-full" onClick={() => setSelectedUser(user)}>
+                        <Eye className="w-3.5 h-3.5 mr-1.5" /> View Prompts
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+                      <DialogHeader>
+                        <DialogTitle>{user.fullName} — Prompts ({user.prompts.length})</DialogTitle>
+                      </DialogHeader>
+                      <ScrollArea className="flex-1 max-h-[60vh]">
+                        {user.prompts.length === 0 ? (
+                          <p className="text-sm text-muted-foreground py-8 text-center">No prompts yet</p>
+                        ) : (
+                          <div className="space-y-3 pr-4">
+                            {user.prompts.map((p, i) => <PromptCard key={i} prompt={p} index={i} />)}
+                          </div>
+                        )}
+                      </ScrollArea>
+                    </DialogContent>
+                  </Dialog>
+                </div>
+              ))
+            )}
+          </div>
+          {/* Desktop table */}
+          <div className="hidden sm:block rounded-lg border overflow-hidden">
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-muted/50 text-left">
