@@ -55,6 +55,8 @@ const Chat = () => {
 
   useEffect(() => {
     refreshHitRate();
+    const interval = setInterval(refreshHitRate, 30_000);
+    return () => clearInterval(interval);
   }, [refreshHitRate, sidebarRefresh]);
 
   if (!session) return null;
