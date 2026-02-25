@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import {
   LogOut, Monitor, ArrowLeft, Play, Lock, Grid3X3, Eraser, Brain,
-  ChevronRight, FileText, Hash, Percent, DollarSign, Space, Sparkles,
+  ChevronRight, FileText, Hash, Percent, Space, Sparkles,
 } from "lucide-react";
 
 // ── Types ────────────────────────────────────────────────────────────
@@ -148,10 +148,121 @@ async function computeEmbedding(text) {
   ]
 }`;
 
+/** Infrastructure report: JSON + repetition + whitespace → ~40% compression across all stages */
+const EXAMPLE_INFRA = `Infrastructure Status Report — Dell Technologies
+Project: Trumpet  ·  Region: EMEA  ·  Quarter: Q1-2026
+
+
+
+Executive Summary
+-----------------
+
+In order to ensure the continued reliability of the Dell PowerEdge server cluster,
+our team has completed a full audit of the Dell PowerEdge server cluster resources.
+Due to the fact that the Dell PowerEdge server cluster experienced degraded performance
+in Q4-2025, we have implemented new monitoring policies for the Dell PowerEdge server cluster.
+At this point in time, the Dell PowerEdge server cluster is operating within acceptable thresholds.
+For the purpose of compliance, all changes to the Dell PowerEdge server cluster
+must be documented in the central change management system.
+In the event that the Dell PowerEdge server cluster experiences further degradation,
+the incident response team will be notified within 15 minutes.
+With regard to the expansion budget, the Dell PowerEdge server cluster
+will require additional capacity in Q2-2026.
+As previously mentioned, the Dell PowerEdge server cluster audit findings
+have been shared with all relevant stakeholders.
+
+
+
+Node Inventory (JSON)
+---------------------
+
+{
+  "cluster": "trumpet-emea-prod",
+  "region":  "EMEA",
+  "status":  "operational",
+  "metadata": "",
+  "extra":    null,
+  "nodes": [
+    {
+      "id":     "node-001",
+      "type":   "PowerEdge R750",
+      "status": "active",
+      "cpu_usage":  "34%",
+      "ram_usage":  "61%",
+      "metadata":   "",
+      "logs": [
+        "iDRAC-heartbeat-ok",
+        "iDRAC-firmware-version-stable",
+        "iDRAC-connection-secure",
+        "iDRAC-temp-normal"
+      ]
+    },
+    {
+      "id":     "node-002",
+      "type":   "PowerEdge R750",
+      "status": "active",
+      "cpu_usage":  "41%",
+      "ram_usage":  "58%",
+      "metadata":   "",
+      "logs": [
+        "iDRAC-heartbeat-ok",
+        "iDRAC-firmware-version-stable",
+        "iDRAC-connection-secure"
+      ]
+    },
+    {
+      "id":     "node-003",
+      "type":   "PowerEdge R750",
+      "status": "maintenance",
+      "cpu_usage":  "0%",
+      "ram_usage":  "12%",
+      "metadata":   "",
+      "extra":      null,
+      "logs": []
+    },
+    {
+      "id":     "node-004",
+      "type":   "PowerEdge R750",
+      "status": "active",
+      "cpu_usage":  "29%",
+      "ram_usage":  "70%",
+      "metadata":   "",
+      "logs": [
+        "iDRAC-heartbeat-ok",
+        "iDRAC-firmware-version-stable"
+      ]
+    }
+  ],
+  "storage": {
+    "array":    "PowerStore 500T",
+    "capacity": "200TB",
+    "used":     "143TB",
+    "metadata": "",
+    "extra":    null
+  }
+}
+
+
+
+Recommendations
+---------------
+
+In order to maximize the efficiency of the Dell PowerEdge server cluster,
+we recommend upgrading the firmware on all nodes of the Dell PowerEdge server cluster.
+Due to the fact that node-003 of the Dell PowerEdge server cluster is in maintenance mode,
+capacity planning for the Dell PowerEdge server cluster must account for 3 active nodes only.
+At this point in time, the storage array attached to the Dell PowerEdge server cluster
+has reached 71% utilization and should be expanded prior to the start of Q2-2026.
+`;
+
 const EXAMPLES: Record<string, { label: string; text: string }> = {
   golden: {
     label: GOLDEN_EXAMPLE_LABEL,
     text: GOLDEN_EXAMPLE,
+  },
+  infra: {
+    label: "Infrastructure Report (~40%)",
+    text: EXAMPLE_INFRA,
   },
   ngram: {
     label: "N-Gram (Stage 3)",
@@ -287,7 +398,6 @@ const CompressionView = () => {
   const origTokens = ready ? tokenCounter.count(inputText) : 0;
   const finalTokens = compressionResult?.compressedTokens ?? 0;
   const totalReduction = compressionResult?.compressionPercentage ?? 0;
-  const costSaved = ((origTokens - finalTokens) / 1000) * COST_PER_1K;
 
   const loadExample = (key: string) => {
     const ex = EXAMPLES[key];
@@ -413,8 +523,8 @@ const CompressionView = () => {
                     <button
                       onClick={() => setActiveStage(i)}
                       className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition-colors whitespace-nowrap ${activeStage === i
-                          ? "bg-primary text-primary-foreground"
-                          : "bg-muted hover:bg-muted/80 text-muted-foreground"
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-muted hover:bg-muted/80 text-muted-foreground"
                         }`}
                     >
                       {stage.icon}
@@ -513,13 +623,6 @@ const CompressionView = () => {
                   <div>
                     <p className="text-[10px] uppercase text-muted-foreground tracking-wider">Total Reduction</p>
                     <p className="text-sm font-semibold font-mono text-primary">{totalReduction}%</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <DollarSign className="w-4 h-4 text-muted-foreground" />
-                  <div>
-                    <p className="text-[10px] uppercase text-muted-foreground tracking-wider">Est. Savings</p>
-                    <p className="text-sm font-semibold font-mono">${costSaved.toFixed(4)}</p>
                   </div>
                 </div>
               </div>
