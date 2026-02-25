@@ -148,112 +148,430 @@ async function computeEmbedding(text) {
   ]
 }`;
 
-/** Infrastructure report: JSON + repetition + whitespace → ~40% compression across all stages */
-const EXAMPLE_INFRA = `Infrastructure Status Report — Dell Technologies
-Project: Trumpet  ·  Region: EMEA  ·  Quarter: Q1-2026
+/** Engineered to hit 40-50% compression across Stages 1+2+3 (no aggressive mode needed).
+ *  Stage 1: every verbose phrase repeated 8-12× (in order to, due to the fact that, etc.)
+ *  Stage 2: 3 large pretty-printed JSON blocks with null/empty keys stripped
+ *  Stage 3: technical 4-6 word phrases repeated 3-5× for n-gram replacement
+ */
+const EXAMPLE_INFRA = `QUARTERLY INFRASTRUCTURE HEALTH REPORT
+Dell Technologies — Project Trumpet
+Region: EMEA | Quarter: Q1-2026 | Classification: Internal
 
 
-
-Executive Summary
------------------
-
-In order to ensure the continued reliability of the Dell PowerEdge server cluster,
-our team has completed a full audit of the Dell PowerEdge server cluster resources.
-Due to the fact that the Dell PowerEdge server cluster experienced degraded performance
-in Q4-2025, we have implemented new monitoring policies for the Dell PowerEdge server cluster.
-At this point in time, the Dell PowerEdge server cluster is operating within acceptable thresholds.
-For the purpose of compliance, all changes to the Dell PowerEdge server cluster
-must be documented in the central change management system.
-In the event that the Dell PowerEdge server cluster experiences further degradation,
-the incident response team will be notified within 15 minutes.
-With regard to the expansion budget, the Dell PowerEdge server cluster
-will require additional capacity in Q2-2026.
-As previously mentioned, the Dell PowerEdge server cluster audit findings
-have been shared with all relevant stakeholders.
+SECTION 1 — EXECUTIVE SUMMARY
 
 
+In order to maintain operational excellence across the PowerEdge server farm,
+the infrastructure team conducted a comprehensive audit of the PowerEdge server farm this quarter.
+In order to ensure compliance with SLA commitments, every node in the PowerEdge server farm
+was evaluated against the defined performance baseline.
+In order to support the planned capacity expansion, the PowerEdge server farm
+must be upgraded to the latest firmware before the end of Q1-2026.
+In order to reduce mean time to recovery, the PowerEdge server farm is now integrated
+with the centralized monitoring and alerting system.
+In order to achieve the target compression efficiency, all prompts routed through
+the PowerEdge server farm are pre-processed by the RAG compression pipeline.
 
-Node Inventory (JSON)
----------------------
+Due to the fact that the storage area network experienced latency spikes in December,
+the storage area network capacity was increased by 40TB.
+Due to the fact that the storage area network throughput was saturated during peak hours,
+a second storage area network fabric was deployed in parallel.
+Due to the fact that the storage area network utilization exceeded 80% for three consecutive weeks,
+procurement has been initiated for additional storage area network capacity.
+Due to the fact that the storage area network is shared across all business units,
+priority queuing has been enabled on the storage area network fabric controllers.
+
+At this point in time, the centralized monitoring and alerting system covers all 48 nodes.
+At this point in time, the centralized monitoring and alerting system sends alerts
+to the on-call rotation via PagerDuty.
+At this point in time, the centralized monitoring and alerting system has a mean alert latency
+of under 30 seconds, which exceeds the SLA target.
+At this point in time, the centralized monitoring and alerting system is configured to
+auto-remediate memory pressure events on the PowerEdge server farm.
+
+For the purpose of capacity planning, all resource consumption data from the PowerEdge server farm
+is aggregated weekly into the centralized monitoring and alerting system.
+For the purpose of compliance reporting, the centralized monitoring and alerting system
+retains audit logs for 90 days.
+For the purpose of disaster recovery validation, each node in the PowerEdge server farm
+undergoes monthly failover testing.
+For the purpose of change management, all modifications to the PowerEdge server farm
+must be approved via the centralized change management portal.
+
+With regard to the storage area network expansion timeline, procurement expects delivery by March 14.
+With regard to the PowerEdge server farm firmware upgrade, the maintenance window is scheduled
+for the weekend of February 28.
+With regard to the centralized monitoring and alerting system dashboards,
+a new real-time view has been released to all operations teams.
+With regard to the disaster recovery runbook, an updated version is available
+on the internal documentation portal.
+
+It is important to note that the PowerEdge server farm audit revealed three nodes
+operating above the thermal threshold.
+It is important to note that the storage area network latency improvement
+requires a firmware upgrade on all fabric switches.
+It is important to note that the centralized monitoring and alerting system
+does not yet cover the legacy AIX workloads in zone B.
+It is important to note that the quarterly SLA report must be submitted
+to the governance committee before March 31.
+
+As previously mentioned, the PowerEdge server farm firmware upgrade is the highest priority
+action item for Q1-2026.
+As previously mentioned, the storage area network expansion was approved in the Q4-2025 planning cycle.
+As previously mentioned, the centralized monitoring and alerting system integration
+with ServiceNow was completed in January.
+
+In the event that the PowerEdge server farm experiences an unplanned outage,
+the disaster recovery runbook should be followed immediately.
+In the event that the storage area network becomes unavailable,
+read-only cache serving will continue from the edge nodes.
+In the event that the centralized monitoring and alerting system itself fails,
+the fallback notification channel is email to the operations distribution list.
+
+
+SECTION 2 — NODE INVENTORY (JSON)
+
 
 {
-  "cluster": "trumpet-emea-prod",
-  "region":  "EMEA",
-  "status":  "operational",
-  "metadata": "",
-  "extra":    null,
+  "cluster": "trumpet-emea-prod-a",
+  "region": "EMEA",
+  "datacenter": "DC-FRANKFURT-01",
+  "owner": "infra-team@dell.com",
+  "description": "",
+  "notes": null,
+  "metadata": null,
+  "tags": [],
   "nodes": [
     {
-      "id":     "node-001",
-      "type":   "PowerEdge R750",
+      "id": "node-001",
+      "hostname": "pe-r750-001.prod.emea",
+      "type": "PowerEdge R750xs",
+      "role": "compute",
       "status": "active",
-      "cpu_usage":  "34%",
-      "ram_usage":  "61%",
-      "metadata":   "",
+      "cpu_sockets": 2,
+      "cpu_model": "Intel Xeon Gold 6338",
+      "cpu_usage_pct": 34,
+      "ram_gb": 512,
+      "ram_usage_pct": 61,
+      "description": "",
+      "notes": null,
+      "extra": null,
+      "tags": [],
+      "storage": {
+        "local_nvme_tb": 3.84,
+        "description": "",
+        "notes": null
+      },
+      "network": {
+        "primary_ip": "10.10.1.1",
+        "bond": "bond0",
+        "speed_gbps": 25,
+        "description": "",
+        "notes": null
+      },
+      "monitoring": {
+        "agent": "prometheus-node-exporter",
+        "last_seen": "2026-02-25T14:00:00Z",
+        "alerts_active": 0,
+        "description": "",
+        "notes": null
+      },
+      "idrac": {
+        "version": "6.10.30.10",
+        "health": "OK",
+        "temp_celsius": 38,
+        "fan_status": "Optimal",
+        "description": "",
+        "notes": null,
+        "extra": null
+      },
       "logs": [
-        "iDRAC-heartbeat-ok",
-        "iDRAC-firmware-version-stable",
-        "iDRAC-connection-secure",
-        "iDRAC-temp-normal"
+        "idrac-heartbeat-ok",
+        "idrac-firmware-version-stable",
+        "idrac-connection-secure",
+        "idrac-temp-normal",
+        "idrac-fan-optimal"
       ]
     },
     {
-      "id":     "node-002",
-      "type":   "PowerEdge R750",
+      "id": "node-002",
+      "hostname": "pe-r750-002.prod.emea",
+      "type": "PowerEdge R750xs",
+      "role": "compute",
       "status": "active",
-      "cpu_usage":  "41%",
-      "ram_usage":  "58%",
-      "metadata":   "",
+      "cpu_sockets": 2,
+      "cpu_model": "Intel Xeon Gold 6338",
+      "cpu_usage_pct": 41,
+      "ram_gb": 512,
+      "ram_usage_pct": 58,
+      "description": "",
+      "notes": null,
+      "extra": null,
+      "tags": [],
+      "storage": {
+        "local_nvme_tb": 3.84,
+        "description": "",
+        "notes": null
+      },
+      "network": {
+        "primary_ip": "10.10.1.2",
+        "bond": "bond0",
+        "speed_gbps": 25,
+        "description": "",
+        "notes": null
+      },
+      "monitoring": {
+        "agent": "prometheus-node-exporter",
+        "last_seen": "2026-02-25T14:00:00Z",
+        "alerts_active": 0,
+        "description": "",
+        "notes": null
+      },
+      "idrac": {
+        "version": "6.10.30.10",
+        "health": "OK",
+        "temp_celsius": 40,
+        "fan_status": "Optimal",
+        "description": "",
+        "notes": null,
+        "extra": null
+      },
       "logs": [
-        "iDRAC-heartbeat-ok",
-        "iDRAC-firmware-version-stable",
-        "iDRAC-connection-secure"
+        "idrac-heartbeat-ok",
+        "idrac-firmware-version-stable",
+        "idrac-connection-secure"
       ]
     },
     {
-      "id":     "node-003",
-      "type":   "PowerEdge R750",
+      "id": "node-003",
+      "hostname": "pe-r750-003.prod.emea",
+      "type": "PowerEdge R750xs",
+      "role": "compute",
       "status": "maintenance",
-      "cpu_usage":  "0%",
-      "ram_usage":  "12%",
-      "metadata":   "",
-      "extra":      null,
+      "cpu_sockets": 2,
+      "cpu_model": "Intel Xeon Gold 6338",
+      "cpu_usage_pct": 0,
+      "ram_gb": 512,
+      "ram_usage_pct": 12,
+      "description": "",
+      "notes": null,
+      "extra": null,
+      "tags": [],
+      "storage": {
+        "local_nvme_tb": 3.84,
+        "description": "",
+        "notes": null
+      },
+      "network": {
+        "primary_ip": "10.10.1.3",
+        "bond": "bond0",
+        "speed_gbps": 25,
+        "description": "",
+        "notes": null
+      },
+      "monitoring": {
+        "agent": "prometheus-node-exporter",
+        "last_seen": "2026-02-25T09:00:00Z",
+        "alerts_active": 2,
+        "description": "",
+        "notes": null
+      },
+      "idrac": {
+        "version": "6.10.00.00",
+        "health": "Warning",
+        "temp_celsius": 52,
+        "fan_status": "Degraded",
+        "description": "",
+        "notes": null,
+        "extra": null
+      },
       "logs": []
     },
     {
-      "id":     "node-004",
-      "type":   "PowerEdge R750",
+      "id": "node-004",
+      "hostname": "pe-r750-004.prod.emea",
+      "type": "PowerEdge R750xs",
+      "role": "compute",
       "status": "active",
-      "cpu_usage":  "29%",
-      "ram_usage":  "70%",
-      "metadata":   "",
+      "cpu_sockets": 2,
+      "cpu_model": "Intel Xeon Gold 6338",
+      "cpu_usage_pct": 29,
+      "ram_gb": 512,
+      "ram_usage_pct": 70,
+      "description": "",
+      "notes": null,
+      "extra": null,
+      "tags": [],
+      "storage": {
+        "local_nvme_tb": 3.84,
+        "description": "",
+        "notes": null
+      },
+      "network": {
+        "primary_ip": "10.10.1.4",
+        "bond": "bond0",
+        "speed_gbps": 25,
+        "description": "",
+        "notes": null
+      },
+      "monitoring": {
+        "agent": "prometheus-node-exporter",
+        "last_seen": "2026-02-25T14:00:00Z",
+        "alerts_active": 0,
+        "description": "",
+        "notes": null
+      },
+      "idrac": {
+        "version": "6.10.30.10",
+        "health": "OK",
+        "temp_celsius": 37,
+        "fan_status": "Optimal",
+        "description": "",
+        "notes": null,
+        "extra": null
+      },
       "logs": [
-        "iDRAC-heartbeat-ok",
-        "iDRAC-firmware-version-stable"
+        "idrac-heartbeat-ok",
+        "idrac-firmware-version-stable"
       ]
     }
   ],
-  "storage": {
-    "array":    "PowerStore 500T",
-    "capacity": "200TB",
-    "used":     "143TB",
-    "metadata": "",
-    "extra":    null
+  "storage_array": {
+    "model": "PowerStore 9000T",
+    "serial": "PS0001234",
+    "capacity_tb": 200,
+    "used_tb": 143,
+    "description": "",
+    "notes": null,
+    "extra": null,
+    "pools": [
+      {"name": "pool-gold",   "tier": "NVMe",  "used_tb": 80, "description": "", "notes": null},
+      {"name": "pool-silver", "tier": "SAS",   "used_tb": 50, "description": "", "notes": null},
+      {"name": "pool-bronze", "tier": "NL-SAS","used_tb": 13, "description": "", "notes": null}
+    ]
   }
 }
 
 
+SECTION 3 — STORAGE AREA NETWORK TOPOLOGY (JSON)
 
-Recommendations
----------------
 
-In order to maximize the efficiency of the Dell PowerEdge server cluster,
-we recommend upgrading the firmware on all nodes of the Dell PowerEdge server cluster.
-Due to the fact that node-003 of the Dell PowerEdge server cluster is in maintenance mode,
-capacity planning for the Dell PowerEdge server cluster must account for 3 active nodes only.
-At this point in time, the storage array attached to the Dell PowerEdge server cluster
-has reached 71% utilization and should be expanded prior to the start of Q2-2026.
+{
+  "fabric_name": "san-emea-prod",
+  "protocol": "NVMe-oF/FC",
+  "description": "",
+  "notes": null,
+  "extra": null,
+  "switches": [
+    {
+      "id": "sw-01",
+      "model": "Brocade G720",
+      "role": "core",
+      "ports_total": 64,
+      "ports_used": 48,
+      "firmware": "9.2.0b",
+      "health": "Healthy",
+      "description": "",
+      "notes": null,
+      "extra": null,
+      "uplinks": ["sw-03", "sw-04"],
+      "alerts": []
+    },
+    {
+      "id": "sw-02",
+      "model": "Brocade G720",
+      "role": "core",
+      "ports_total": 64,
+      "ports_used": 44,
+      "firmware": "9.2.0b",
+      "health": "Healthy",
+      "description": "",
+      "notes": null,
+      "extra": null,
+      "uplinks": ["sw-03", "sw-04"],
+      "alerts": []
+    },
+    {
+      "id": "sw-03",
+      "model": "Brocade G630",
+      "role": "edge",
+      "ports_total": 32,
+      "ports_used": 28,
+      "firmware": "9.1.1",
+      "health": "Healthy",
+      "description": "",
+      "notes": null,
+      "extra": null,
+      "uplinks": [],
+      "alerts": []
+    },
+    {
+      "id": "sw-04",
+      "model": "Brocade G630",
+      "role": "edge",
+      "ports_total": 32,
+      "ports_used": 26,
+      "firmware": "9.1.1",
+      "health": "Warning",
+      "description": "",
+      "notes": null,
+      "extra": null,
+      "uplinks": [],
+      "alerts": ["port-22-link-degraded"]
+    }
+  ],
+  "host_connections": [
+    {"host": "pe-r750-001.prod.emea", "wwpn": "10:00:00:90:FA:01:00:01", "description": "", "notes": null},
+    {"host": "pe-r750-002.prod.emea", "wwpn": "10:00:00:90:FA:01:00:02", "description": "", "notes": null},
+    {"host": "pe-r750-003.prod.emea", "wwpn": "10:00:00:90:FA:01:00:03", "description": "", "notes": null},
+    {"host": "pe-r750-004.prod.emea", "wwpn": "10:00:00:90:FA:01:00:04", "description": "", "notes": null}
+  ]
+}
+
+
+SECTION 4 — ACTION ITEMS AND RECOMMENDATIONS
+
+
+In order to resolve the thermal warning on node-003, the cooling unit in rack C04 must be replaced.
+In order to bring node-003 back to active status, a firmware upgrade must be completed first.
+In order to eliminate the port-22 degradation on sw-04 of the storage area network,
+the SFP transceiver must be replaced during the next maintenance window.
+
+Due to the fact that the storage area network utilization on pool-gold exceeded 85%,
+additional NVMe capacity must be ordered before the storage area network reaches capacity.
+Due to the fact that node-003 is currently in maintenance mode,
+the PowerEdge server farm is operating at 75% of its rated compute capacity.
+
+At this point in time, the action items are tracked in the centralized change management portal.
+At this point in time, three action items are past their original due dates.
+At this point in time, the procurement request for storage area network expansion is pending approval.
+
+For the purpose of the next quarterly review, the infrastructure team will present
+a full capacity forecast for the PowerEdge server farm and the storage area network.
+For the purpose of audit readiness, all configuration changes to the PowerEdge server farm
+must be logged in the centralized change management portal before execution.
+
+With regard to the firmware upgrade schedule for the PowerEdge server farm,
+the change advisory board has approved a four-hour maintenance window.
+With regard to the storage area network monitoring gaps, the centralized monitoring and alerting system
+will be extended to cover all SAN switches by end of February.
+
+It is important to note that all action items must be reviewed by the infrastructure lead
+before the next sprint planning session.
+It is important to note that the centralized monitoring and alerting system dashboard
+requires browser access to the internal VPN to be visible.
+
+As previously mentioned, all findings from this quarterly infrastructure health report
+have been reviewed with the regional operations manager.
+As previously mentioned, the PowerEdge server farm upgrade plan has been communicated
+to the business units that depend on the cluster.
+
+In the event that the storage area network expansion is delayed beyond April,
+an emergency capacity release from the bronze pool will be required.
+In the event that additional nodes are added to the PowerEdge server farm,
+the centralized monitoring and alerting system must be updated to include them.
 `;
+
 
 const EXAMPLES: Record<string, { label: string; text: string }> = {
   golden: {
@@ -319,7 +637,7 @@ const CompressionView = () => {
     const tok5 = tok4 - result.stages.stage5_pruning;
 
     const skippedLabel = result.metadata.ngramsSkippedROI > 0
-      ? `, ${result.metadata.ngramsSkippedROI} skipped by ROI`
+      ? `, ${ result.metadata.ngramsSkippedROI } skipped by ROI`
       : "";
 
     return [
@@ -344,7 +662,7 @@ const CompressionView = () => {
       {
         name: "N-Gram Compression",
         icon: <Grid3X3 className="w-4 h-4" />,
-        description: `Token-aware n-gram mining with inline annotations (${result.metadata.ngramsReplaced} replaced${skippedLabel})`,
+        description: `Token - aware n - gram mining with inline annotations(${ result.metadata.ngramsReplaced } replaced${ skippedLabel })`,
         output: result.stageTexts.afterStage3,
         tokensBefore: tok2,
         tokensAfter: tok3,
@@ -437,15 +755,17 @@ const CompressionView = () => {
       <div className="md:hidden flex border-b bg-card shrink-0">
         <button
           onClick={() => setMobileTab('input')}
-          className={`flex-1 py-2.5 text-sm font-medium transition-colors border-b-2 ${mobileTab === 'input' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground'
-            }`}
+          className={`flex - 1 py - 2.5 text - sm font - medium transition - colors border - b - 2 ${
+  mobileTab === 'input' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground'
+} `}
         >
           Input
         </button>
         <button
           onClick={() => setMobileTab('result')}
-          className={`flex-1 py-2.5 text-sm font-medium transition-colors border-b-2 ${mobileTab === 'result' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground'
-            }`}
+          className={`flex - 1 py - 2.5 text - sm font - medium transition - colors border - b - 2 ${
+  mobileTab === 'result' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground'
+} `}
         >
           Pipeline Results
         </button>
@@ -453,7 +773,7 @@ const CompressionView = () => {
 
       <div className="flex flex-1 overflow-hidden">
         {/* Left: Input + Controls */}
-        <div className={`md:w-[400px] md:border-r flex flex-col shrink-0 w-full md:flex ${mobileTab === 'input' ? 'flex' : 'hidden'}`}>
+        <div className={`md: w - [400px] md: border - r flex flex - col shrink - 0 w - full md:flex ${ mobileTab === 'input' ? 'flex' : 'hidden' } `}>
           <div className="px-4 py-3 border-b bg-muted/50">
             <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Input Prompt</span>
           </div>
@@ -500,7 +820,7 @@ const CompressionView = () => {
         </div>
 
         {/* Right: Pipeline Stages */}
-        <div className={`flex-1 flex flex-col overflow-hidden ${mobileTab === 'result' ? 'flex' : 'hidden md:flex'}`}>
+        <div className={`flex - 1 flex flex - col overflow - hidden ${ mobileTab === 'result' ? 'flex' : 'hidden md:flex' } `}>
           {stages.length === 0 ? (
             <div className="flex-1 flex items-center justify-center">
               <div className="text-center space-y-3">
@@ -522,10 +842,11 @@ const CompressionView = () => {
                   <div key={i} className="flex items-center gap-1">
                     <button
                       onClick={() => setActiveStage(i)}
-                      className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition-colors whitespace-nowrap ${activeStage === i
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-muted hover:bg-muted/80 text-muted-foreground"
-                        }`}
+                      className={`flex items - center gap - 2 px - 3 py - 2 rounded - lg text - xs font - medium transition - colors whitespace - nowrap ${
+  activeStage === i
+  ? "bg-primary text-primary-foreground"
+  : "bg-muted hover:bg-muted/80 text-muted-foreground"
+} `}
                     >
                       {stage.icon}
                       {stage.name}
