@@ -637,7 +637,7 @@ const CompressionView = () => {
     const tok5 = tok4 - result.stages.stage5_pruning;
 
     const skippedLabel = result.metadata.ngramsSkippedROI > 0
-      ? `, ${ result.metadata.ngramsSkippedROI } skipped by ROI`
+      ? `, ${result.metadata.ngramsSkippedROI} skipped by ROI`
       : "";
 
     return [
@@ -662,7 +662,7 @@ const CompressionView = () => {
       {
         name: "N-Gram Compression",
         icon: <Grid3X3 className="w-4 h-4" />,
-        description: `Token - aware n - gram mining with inline annotations(${ result.metadata.ngramsReplaced } replaced${ skippedLabel })`,
+        description: `Token - aware n - gram mining with inline annotations(${result.metadata.ngramsReplaced} replaced${skippedLabel})`,
         output: result.stageTexts.afterStage3,
         tokensBefore: tok2,
         tokensAfter: tok3,
@@ -755,17 +755,13 @@ const CompressionView = () => {
       <div className="md:hidden flex border-b bg-card shrink-0">
         <button
           onClick={() => setMobileTab('input')}
-          className={`flex - 1 py - 2.5 text - sm font - medium transition - colors border - b - 2 ${
-  mobileTab === 'input' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground'
-} `}
+          className={`flex-1 py-2.5 text-sm font-medium transition-colors border-b-2 ${mobileTab === 'input' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground'}`}
         >
           Input
         </button>
         <button
           onClick={() => setMobileTab('result')}
-          className={`flex - 1 py - 2.5 text - sm font - medium transition - colors border - b - 2 ${
-  mobileTab === 'result' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground'
-} `}
+          className={`flex-1 py-2.5 text-sm font-medium transition-colors border-b-2 ${mobileTab === 'result' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground'}`}
         >
           Pipeline Results
         </button>
@@ -773,7 +769,7 @@ const CompressionView = () => {
 
       <div className="flex flex-1 overflow-hidden">
         {/* Left: Input + Controls */}
-        <div className={`md: w - [400px] md: border - r flex flex - col shrink - 0 w - full md:flex ${ mobileTab === 'input' ? 'flex' : 'hidden' } `}>
+        <div className={`md:w-[400px] md:border-r flex flex-col shrink-0 w-full md:flex ${mobileTab === 'input' ? 'flex' : 'hidden'}`}>
           <div className="px-4 py-3 border-b bg-muted/50">
             <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Input Prompt</span>
           </div>
@@ -820,7 +816,7 @@ const CompressionView = () => {
         </div>
 
         {/* Right: Pipeline Stages */}
-        <div className={`flex - 1 flex flex - col overflow - hidden ${ mobileTab === 'result' ? 'flex' : 'hidden md:flex' } `}>
+        <div className={`flex-1 flex flex-col overflow-hidden ${mobileTab === 'result' ? 'flex' : 'hidden md:flex'}`}>
           {stages.length === 0 ? (
             <div className="flex-1 flex items-center justify-center">
               <div className="text-center space-y-3">
@@ -842,11 +838,10 @@ const CompressionView = () => {
                   <div key={i} className="flex items-center gap-1">
                     <button
                       onClick={() => setActiveStage(i)}
-                      className={`flex items - center gap - 2 px - 3 py - 2 rounded - lg text - xs font - medium transition - colors whitespace - nowrap ${
-  activeStage === i
-  ? "bg-primary text-primary-foreground"
-  : "bg-muted hover:bg-muted/80 text-muted-foreground"
-} `}
+                      className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition-colors whitespace-nowrap ${activeStage === i
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-muted hover:bg-muted/80 text-muted-foreground"
+                        }`}
                     >
                       {stage.icon}
                       {stage.name}
